@@ -10,7 +10,6 @@ import {
   CheckCircle2,
   ArrowRight,
   TrendingUp,
-  Globe,
   ChevronLeft,
   ChevronRight,
   RefreshCw,
@@ -68,14 +67,13 @@ export const SearchView: React.FC = () => {
 
   const [loading, setLoading] = useState(false);
   const [activeFilter, setActiveFilter] = useState<
-    'all' | 'audius' | 'jamendo' | 'songs' | 'artists' | 'playlists' | 'rooms'
+    'all' | 'songs' | 'artists' | 'playlists' | 'rooms'
   >('all');
-  const [selectedJamendoGenre, setSelectedJamendoGenre] = useState<string>('all');
-  const [jamendoGenreLoading, setJamendoGenreLoading] = useState(false);
-  const [displayJamendoTracks, setDisplayJamendoTracks] = useState<Track[]>(JAMENDO_CATALOG_TRACKS);
+  const [selectedGenre, setSelectedGenre] = useState<string>('all');
+  const [genreLoading, setGenreLoading] = useState(false);
+  const [genreTracks, setGenreTracks] = useState<Track[]>([]);
 
   const artistsScrollRef = useRef<HTMLDivElement>(null);
-  const jamendoScrollRef = useRef<HTMLDivElement>(null);
 
   // Search execution
   useEffect(() => {
@@ -85,7 +83,6 @@ export const SearchView: React.FC = () => {
       const res = await musicService.search(searchQuery);
       if (active) {
         setResults(res);
-        setDisplayJamendoTracks(res.jamendoTracks && res.jamendoTracks.length > 0 ? res.jamendoTracks : JAMENDO_CATALOG_TRACKS);
         setLoading(false);
       }
     };
@@ -100,24 +97,24 @@ export const SearchView: React.FC = () => {
     };
   }, [searchQuery, addRecentSearch]);
 
-  // Handle Jamendo genre filter switch
-  const handleJamendoGenreChange = async (genreKey: string) => {
-    setSelectedJamendoGenre(genreKey);
+  // Handle genre filter switch
+  const handleGenreChange = async (genreKey: string) => {
+    setSelectedGenre(genreKey);
     if (genreKey === 'all') {
-      setDisplayJamendoTracks(results.jamendoTracks.length > 0 ? results.jamendoTracks : JAMENDO_CATALOG_TRACKS);
+      setGenreTracks([]);
       return;
     }
 
-    setJamendoGenreLoading(true);
+    setGenreLoading(true);
     try {
       const fetched = await musicService.getTracksForGenre(genreKey);
       if (fetched && fetched.length > 0) {
-        setDisplayJamendoTracks(fetched);
+        setGenreTracks(fetched);
       }
     } catch (e) {
-      console.warn('Error fetching Jamendo genre:', e);
+      console.warn('Error fetching genre:', e);
     } finally {
-      setJamendoGenreLoading(false);
+      setGenreLoading(false);
     }
   };
 
@@ -145,25 +142,30 @@ export const SearchView: React.FC = () => {
     }
   };
 
-  const jamendoGenres = [
-    { id: 'all', label: 'All Catalog' },
+  const musicGenres = [
+    { id: 'all', label: 'All Music' },
     { id: 'electronic', label: 'Electronic & Synth' },
     { id: 'chillout', label: 'Chillout & Ambient' },
     { id: 'lofi', label: 'Lo-Fi Study' },
     { id: 'dance', label: 'EDM & Dance' },
     { id: 'deephouse', label: 'Deep House' },
-    { id: 'bollywood', label: 'Desi Fusion' },
+    { id: 'bollywood', label: 'Bollywood & Desi' },
   ];
 
   const filterTabs = [
     { id: 'all', label: 'All Results' },
-    { id: 'audius', label: 'Audius Live' },
-    { id: 'jamendo', label: 'Jamendo' },
     { id: 'songs', label: 'Songs' },
     { id: 'artists', label: 'Artists' },
     { id: 'playlists', label: 'Playlists' },
     { id: 'rooms', label: 'Live Rooms' },
   ];
+
+  const displaySongs =
+    selectedGenre !== 'all' && genreTracks.length > 0
+      ? genreTracks
+      : results.tracks.length > 0
+      ? results.tracks
+      : initialAllTracks;
 
   return (
     <div className="space-y-8 pb-16 animate-fadeIn select-none">
@@ -212,17 +214,17 @@ export const SearchView: React.FC = () => {
           <div>
             <div className="flex items-center gap-3">
               <h2 className="text-2xl sm:text-3xl font-black text-white">
-                {searchQuery ? `Search Results for "${searchQuery}"` : 'Explore Music & Jamendo Library'}
+                {searchQuery ? `Search Results for "${searchQuery}"` : 'Search & Explore Music'}
               </h2>
               {loading && (
                 <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#1DB954]/15 border border-[#1DB954]/40 text-xs font-bold text-[#1DB954] animate-pulse">
                   <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                  <span>Syncing Live Catalog...</span>
+                  <span>Searching...</span>
                 </div>
               )}
             </div>
             <p className="text-sm text-[#B3B3B3] mt-1">
-              Access Jamendo global full-length music library, verified artist hubs, and community rooms.
+              Find songs, artists, playlists, and live rooms for continuous listening and AI DJ mixing.
             </p>
           </div>
         </div>
@@ -402,112 +404,48 @@ export const SearchView: React.FC = () => {
             </section>
           )}
 
-          {/* 5. DEDICATED JAMENDO GLOBAL MUSIC LIBRARY SECTION */}
-          {(activeFilter === 'all' || activeFilter === 'jamendo') && (
-            <section className="p-6 rounded-2xl bg-gradient-to-r from-[#0d2218]/90 via-[#161616] to-[#1e1329]/90 border border-[#1DB954]/30 shadow-2xl space-y-5">
-              {/* Jamendo Header with Controls */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <Globe className="w-5 h-5 text-[#1DB954]" />
-                    <h3 className="text-xl font-black text-white tracking-tight">Jamendo Music Library</h3>
-                    <span className="text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full bg-[#1DB954] text-black">
-                      Full Audio 0:00
-                    </span>
-                  </div>
-                  <p className="text-xs text-[#B3B3B3]">
-                    Search and stream thousands of independent, royalty-free full-length songs with no 30-second clips.
-                  </p>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => scrollContainer(jamendoScrollRef, 'left')}
-                    aria-label="Scroll Jamendo left"
-                    className="w-7 h-7 rounded-full bg-black/60 hover:bg-black text-[#B3B3B3] hover:text-white flex items-center justify-center transition-colors cursor-pointer"
-                  >
-                    <ChevronLeft className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => scrollContainer(jamendoScrollRef, 'right')}
-                    aria-label="Scroll Jamendo right"
-                    className="w-7 h-7 rounded-full bg-black/60 hover:bg-black text-[#B3B3B3] hover:text-white flex items-center justify-center transition-colors cursor-pointer"
-                  >
-                    <ChevronRight className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-
-              {/* Genre Filter Pills inside Jamendo Library */}
-              <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none" style={{ scrollbarWidth: 'none' }}>
-                {jamendoGenres.map((g) => {
-                  const isSelected = selectedJamendoGenre === g.id;
-                  return (
-                    <button
-                      key={g.id}
-                      onClick={() => handleJamendoGenreChange(g.id)}
-                      className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
-                        isSelected
-                          ? 'bg-[#1DB954] text-black font-bold shadow-md shadow-[#1DB954]/25'
-                          : 'bg-[#222222] text-[#B3B3B3] hover:text-white hover:bg-[#2c2c2c]'
-                      }`}
-                    >
-                      {g.label}
-                    </button>
-                  );
-                })}
-
-                {jamendoGenreLoading && (
-                  <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/40 text-xs text-[#1DB954]">
-                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                    <span>Loading...</span>
-                  </div>
-                )}
-              </div>
-
-              {/* Scrollable Track Row */}
-              <div
-                ref={jamendoScrollRef}
-                className="flex items-stretch gap-4 overflow-x-auto pb-2 scrollbar-none"
-                style={{ scrollbarWidth: 'none' }}
-              >
-                {displayJamendoTracks.map((track) => (
-                  <TrackCard key={track.id} track={track} showBpm />
-                ))}
-              </div>
-            </section>
-          )}
-
-          {/* 6. Standard Full Songs Section */}
-          {(activeFilter === 'all' || activeFilter === 'songs' || activeFilter === 'audius') && (
+          {/* 5. Songs Section with Quick Genre Filters */}
+          {(activeFilter === 'all' || activeFilter === 'songs') && (
             <section className="space-y-4">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
                   <Music className="w-5 h-5 text-[#1DB954]" />
-                  <h3 className="text-lg font-bold text-white">
-                    {activeFilter === 'audius' ? 'Audius Live Discovery' : 'Songs'} (
-                    {
-                      (activeFilter === 'audius'
-                        ? results.tracks.filter((t) => t.provider === 'audius')
-                        : results.tracks
-                      ).length
-                    }
-                    )
+                  <h3 className="text-xl font-bold text-white tracking-tight">
+                    Songs ({displaySongs.length})
                   </h3>
                 </div>
-                <span className="text-xs text-[#B3B3B3]">
-                  {activeFilter === 'audius'
-                    ? 'Free real-time streaming with native BPM & harmonic keys'
-                    : 'Complete full-length audio tracks from multi-provider engine'}
-                </span>
+
+                {/* Genre Filter Pills */}
+                <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none" style={{ scrollbarWidth: 'none' }}>
+                  {musicGenres.map((g) => {
+                    const isSelected = selectedGenre === g.id;
+                    return (
+                      <button
+                        key={g.id}
+                        onClick={() => handleGenreChange(g.id)}
+                        className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
+                          isSelected
+                            ? 'bg-[#1DB954] text-black font-bold shadow-md shadow-[#1DB954]/25'
+                            : 'bg-[#222222] text-[#B3B3B3] hover:text-white hover:bg-[#2c2c2c]'
+                        }`}
+                      >
+                        {g.label}
+                      </button>
+                    );
+                  })}
+
+                  {genreLoading && (
+                    <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/40 text-xs text-[#1DB954]">
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Loading...</span>
+                    </div>
+                  )}
+                </div>
               </div>
 
-              {results.tracks.length > 0 ? (
+              {displaySongs.length > 0 ? (
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-                  {(activeFilter === 'audius'
-                    ? results.tracks.filter((t) => t.provider === 'audius')
-                    : results.tracks
-                  ).map((track) => (
+                  {displaySongs.map((track) => (
                     <TrackCard key={track.id} track={track} showBpm className="w-full min-w-0" />
                   ))}
                 </div>

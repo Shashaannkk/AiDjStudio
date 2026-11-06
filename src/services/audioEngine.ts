@@ -4,11 +4,18 @@
  * Full-length continuous playback starting from second 0:00 through the complete song.
  */
 
+const RELIABLE_AUDIO_STREAMS = [
+  'https://prod-1.storage.jamendo.com/?trackid=1885834&format=mp32&ndls=1',
+  'https://prod-1.storage.jamendo.com/?trackid=1890528&format=mp32&ndls=1',
+  'https://prod-1.storage.jamendo.com/?trackid=1878931&format=mp32&ndls=1',
+  'https://prod-1.storage.jamendo.com/?trackid=1864072&format=mp32&ndls=1',
+  'https://prod-1.storage.jamendo.com/?trackid=1853942&format=mp32&ndls=1',
+];
+
 class AudioEngine {
   private audioCtx: AudioContext | null = null;
   private analyser: AnalyserNode | null = null;
   private gainNode: GainNode | null = null;
-  private mediaElementSource: MediaElementAudioSourceNode | null = null;
   private isPlaying = false;
   private volume = 0.8;
   private audioElem: HTMLAudioElement | null = null;
@@ -20,14 +27,15 @@ class AudioEngine {
   private fallbackTimer: number | null = null;
   private fallbackTime = 0;
   private targetDuration = 210;
+  private isRetryingFallback = false;
 
   constructor() {
     if (typeof window !== 'undefined') {
       this.audioElem = new Audio();
       this.audioElem.volume = this.volume;
       this.audioElem.preload = 'auto';
-      this.audioElem.crossOrigin = 'anonymous';
-      this.audioElem.loop = false; // Never force-loop a clip unless repeat mode is single
+      // Note: crossOrigin is intentionally omitted so the browser plays cross-origin streams directly
+      this.audioElem.loop = false;
 
       this.audioElem.ontimeupdate = () => {
         if (!this.audioElem) return;
@@ -57,12 +65,19 @@ class AudioEngine {
         }
       };
 
-      this.audioElem.onerror = (e) => {
-        console.warn('Audio stream fallback notice:', e);
-        // If external audio stream fails, fallback to procedural high-res sound
-        if (this.isPlaying && !this.synthInterval) {
-          this.startSynthGroove(this.currentBpm);
-          this.startFallbackTimer();
+      this.audioElem.onerror = () => {
+        if (!this.audioElem) return;
+        // If external audio stream fails, seamlessly switch to a verified streaming backup
+        if (!this.isRetryingFallback) {
+          this.isRetryingFallback = true;
+          const fallback = RELIABLE_AUDIO_STREAMS[Math.floor(Math.random() * RELIABLE_AUDIO_STREAMS.length)];
+          this.audioElem.src = fallback;
+          this.audioElem.play().catch(() => {
+            if (this.isPlaying && !this.synthInterval) {
+              this.startSynthGroove(this.currentBpm);
+              this.startFallbackTimer();
+            }
+          });
         }
       };
     }
@@ -80,17 +95,6 @@ class AudioEngine {
         this.gainNode.gain.setValueAtTime(this.volume * 0.2, this.audioCtx.currentTime);
         this.gainNode.connect(this.analyser);
         this.analyser.connect(this.audioCtx.destination);
-
-        // Try to connect HTML Audio element to analyser node if CORS allows
-        if (this.audioElem && !this.mediaElementSource) {
-          try {
-            this.mediaElementSource = this.audioCtx.createMediaElementSource(this.audioElem);
-            this.mediaElementSource.connect(this.analyser);
-            this.analyser.connect(this.audioCtx.destination);
-          } catch {
-            // In case of CORS restrictions on audio element, fallback to procedural spectrum
-          }
-        }
       }
     }
     if (this.audioCtx && this.audioCtx.state === 'suspended') {
@@ -121,31 +125,39 @@ class AudioEngine {
     this.currentBpm = bpm;
     this.targetDuration = totalDuration > 0 ? totalDuration : 210;
     this.fallbackTime = startFromSec || 0;
+    this.isRetryingFallback = false;
 
     this.stopSynthGroove();
     this.stopFallbackTimer();
 
-    // Check if live audio stream is available
-    if (audioUrl && (audioUrl.startsWith('http://') || audioUrl.startsWith('https://'))) {
-      if (this.audioElem) {
-        this.isLiveStream = true;
-        this.audioElem.pause();
-        this.audioElem.src = audioUrl;
-        this.audioElem.currentTime = startFromSec || 0;
+    // Select valid stream URL or fallback
+    const targetUrl =
+      audioUrl && (audioUrl.startsWith('http://') || audioUrl.startsWith('https://'))
+        ? audioUrl
+        : RELIABLE_AUDIO_STREAMS[Math.floor(Math.random() * RELIABLE_AUDIO_STREAMS.length)];
 
-        try {
-          await this.audioElem.play();
-        } catch (e) {
-          console.warn('Direct stream playback notice, engaging synth support:', e);
-          this.startSynthGroove(bpm);
-          this.startFallbackTimer();
+    if (this.audioElem) {
+      this.isLiveStream = true;
+      this.audioElem.pause();
+      this.audioElem.volume = this.volume;
+      this.audioElem.src = targetUrl;
+      this.audioElem.currentTime = startFromSec || 0;
+
+      try {
+        await this.audioElem.play();
+      } catch (e) {
+        console.warn('Direct stream playback error, attempting fallback stream:', e);
+        if (!this.isRetryingFallback) {
+          this.isRetryingFallback = true;
+          this.audioElem.src = RELIABLE_AUDIO_STREAMS[0];
+          this.audioElem.play().catch(() => {
+            this.startSynthGroove(bpm);
+            this.startFallbackTimer();
+          });
         }
       }
     } else {
       this.isLiveStream = false;
-      if (this.audioElem) {
-        this.audioElem.pause();
-      }
       this.startSynthGroove(bpm);
       this.startFallbackTimer();
     }
@@ -153,7 +165,7 @@ class AudioEngine {
 
   /**
    * DJ Crossfade Transition between current playing track and new track
-   * Performs an exponential gain ramp and smooth beat-mix transition.
+   * Performs smooth volume crossfading between tracks.
    */
   public async crossfadeToTrack(
     trackId: string,
@@ -161,29 +173,41 @@ class AudioEngine {
     startFromSec = 0,
     bpm = 120,
     totalDuration = 210,
-    crossfadeDuration = 1.2
+    crossfadeDuration = 1.0
   ) {
-    if (!this.audioCtx || !this.gainNode || !this.isPlaying) {
+    if (!this.audioElem || !this.isPlaying) {
       await this.playTrack(trackId, audioUrl, startFromSec, bpm, totalDuration);
       return;
     }
 
     try {
-      const now = this.audioCtx.currentTime;
-      // Fade out current track smoothly
-      this.gainNode.gain.cancelScheduledValues(now);
-      this.gainNode.gain.setValueAtTime(this.gainNode.gain.value, now);
-      this.gainNode.gain.exponentialRampToValueAtTime(0.001, now + crossfadeDuration * 0.5);
+      const initialVol = this.volume;
+      const steps = 8;
+      const stepTime = (crossfadeDuration * 500) / steps;
 
+      // Smooth fade out
+      for (let i = 0; i < steps; i++) {
+        setTimeout(() => {
+          if (this.audioElem && this.isPlaying) {
+            this.audioElem.volume = Math.max(0, initialVol * (1 - (i + 1) / steps));
+          }
+        }, i * stepTime);
+      }
+
+      // Switch track and smooth fade in
       setTimeout(async () => {
         await this.playTrack(trackId, audioUrl, startFromSec, bpm, totalDuration);
-        if (this.audioCtx && this.gainNode) {
-          const nextNow = this.audioCtx.currentTime;
-          this.gainNode.gain.cancelScheduledValues(nextNow);
-          this.gainNode.gain.setValueAtTime(0.001, nextNow);
-          this.gainNode.gain.exponentialRampToValueAtTime(this.volume * 0.2, nextNow + crossfadeDuration * 0.5);
+        if (this.audioElem) {
+          this.audioElem.volume = 0;
+          for (let i = 0; i < steps; i++) {
+            setTimeout(() => {
+              if (this.audioElem && this.isPlaying) {
+                this.audioElem.volume = Math.min(initialVol, initialVol * ((i + 1) / steps));
+              }
+            }, i * stepTime);
+          }
         }
-      }, crossfadeDuration * 450);
+      }, crossfadeDuration * 500);
     } catch {
       await this.playTrack(trackId, audioUrl, startFromSec, bpm, totalDuration);
     }

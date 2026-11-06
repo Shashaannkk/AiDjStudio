@@ -181,7 +181,7 @@ export const HomeView: React.FC = () => {
 
           <div className="flex items-center gap-2">
             <span
-              onClick={() => setCurrentView('providers')}
+              onClick={() => setCurrentView('search')}
               className="text-xs font-bold text-[#B3B3B3] hover:text-white cursor-pointer mr-2 hover:underline"
             >
               See All

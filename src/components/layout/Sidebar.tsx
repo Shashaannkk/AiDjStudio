@@ -3,7 +3,6 @@ import {
   Home,
   Search,
   Library,
-  Music2,
   Users,
   Heart,
   Plus,
@@ -29,7 +28,6 @@ export const Sidebar: React.FC = () => {
   const mainNavItems = [
     { id: 'home' as ViewType, label: 'Home', icon: Home },
     { id: 'search' as ViewType, label: 'Search', icon: Search },
-    { id: 'providers' as ViewType, label: 'Music Providers', icon: Music2, badge: 'SPOTIFY' },
     { id: 'library' as ViewType, label: 'Your Library', icon: Library },
     { id: 'rooms' as ViewType, label: 'Live Rooms', icon: Users, badge: 'LIVE' },
   ];

@@ -180,27 +180,27 @@ export const LibraryView: React.FC = () => {
         </div>
       </section>
 
-      {/* Music Providers Catalog Showcase Section */}
-      <section className="p-6 rounded-2xl bg-gradient-to-r from-[#123824] via-[#181818] to-[#1d122e] border border-[#1DB954]/30 shadow-2xl space-y-4">
+      {/* Featured Master Catalog Showcase Section */}
+      <section className="p-6 rounded-2xl bg-gradient-to-r from-[#161616] via-[#1a1a1a] to-[#161616] border border-white/10 shadow-xl space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-[#1DB954] animate-pulse" />
-              <h3 className="text-xl font-black text-white tracking-tight">Music Providers Library</h3>
-              <span className="text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full bg-[#1DB954] text-black font-black">
-                Spotify • Apple • Beatport • SoundCloud
+              <span className="w-2 h-2 rounded-full bg-[#1DB954]" />
+              <h3 className="text-xl font-bold text-white tracking-tight">Featured Library Hits</h3>
+              <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-[#1DB954]/20 text-[#1DB954] border border-[#1DB954]/30">
+                Verified Tracks
               </span>
             </div>
             <p className="text-xs text-[#B3B3B3]">
-              Full-length audio catalog in a clean Spotify-style layout with authentic artwork posters.
+              High-fidelity audio catalog ready for instant listening, playlist building, and AI DJ transitions.
             </p>
           </div>
 
           <button
-            onClick={() => setCurrentView('providers')}
-            className="px-5 py-2.5 rounded-full bg-[#1DB954] hover:bg-[#1ed760] text-black font-extrabold text-xs flex items-center gap-2 shadow-lg shadow-[#1DB954]/25 transition-all transform hover:scale-105 cursor-pointer w-fit"
+            onClick={() => setCurrentView('search')}
+            className="px-4 py-2 rounded-full bg-[#1DB954] hover:bg-[#1ed760] text-black font-bold text-xs flex items-center gap-1.5 shadow-md shadow-[#1DB954]/20 transition-all transform hover:scale-105 cursor-pointer w-fit"
           >
-            <span>Open Full Spotify List View</span>
+            <span>Explore All Music</span>
             <span>→</span>
           </button>
         </div>
