@@ -1,0 +1,123 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --primary: #1DB954;
+    --primary-hover: #169C46;
+    --bg-main: #121212;
+    --bg-sidebar: #000000;
+    --bg-player: #000000;
+    --bg-card: #181818;
+    --bg-card-hover: #242424;
+    --bg-surface: #282828;
+    --text-primary: #FFFFFF;
+    --text-secondary: #B3B3B3;
+    --accent-red: #FF3B5C;
+    --accent-purple: #8C52FF;
+    --accent-orange: #FFA114;
+    --accent-cyan: #22D3EE;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    margin: 0;
+    padding: 0;
+    background-color: var(--bg-main);
+    color: var(--text-primary);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overflow: hidden;
+    user-select: none;
+  }
+}
+
+/* Custom scrollbar matching Spotify Desktop */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.4);
+}
+
+/* Hide scrollbar utility */
+.no-scrollbar::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none !important;
+  scrollbar-width: none !important;
+}
+
+/* Animations */
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 15px rgba(29, 185, 84, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 25px rgba(29, 185, 84, 0.6);
+  }
+}
+
+@keyframes equalizer {
+  0% { height: 4px; }
+  50% { height: 18px; }
+  100% { height: 4px; }
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 3s infinite ease-in-out;
+}
+
+.equalizer-bar-1 {
+  animation: equalizer 0.8s ease-in-out infinite alternate;
+}
+.equalizer-bar-2 {
+  animation: equalizer 1.1s ease-in-out infinite alternate 0.2s;
+}
+.equalizer-bar-3 {
+  animation: equalizer 0.6s ease-in-out infinite alternate 0.4s;
+}
+.equalizer-bar-4 {
+  animation: equalizer 0.9s ease-in-out infinite alternate 0.1s;
+}
+.equalizer-bar-5 {
+  animation: equalizer 0.7s ease-in-out infinite alternate 0.3s;
+}
+
+/* Slider styling */
+input[type="range"] {
+  accent-color: #1DB954;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  height: 12px;
+  width: 12px;
+  border-radius: 50%;
+  background: #ffffff;
+  cursor: pointer;
+  box-shadow: 0 0 4px rgba(0,0,0,0.5);
+  transition: transform 0.1s ease;
+}
+
+input[type="range"]:hover::-webkit-slider-thumb {
+  transform: scale(1.2);
+}
