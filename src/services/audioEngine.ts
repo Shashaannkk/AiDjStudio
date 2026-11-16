@@ -5,11 +5,11 @@
  */
 
 const RELIABLE_AUDIO_STREAMS = [
-  'https://prod-1.storage.jamendo.com/?trackid=1885834&format=mp32&ndls=1',
-  'https://prod-1.storage.jamendo.com/?trackid=1890528&format=mp32&ndls=1',
-  'https://prod-1.storage.jamendo.com/?trackid=1878931&format=mp32&ndls=1',
-  'https://prod-1.storage.jamendo.com/?trackid=1864072&format=mp32&ndls=1',
-  'https://prod-1.storage.jamendo.com/?trackid=1853942&format=mp32&ndls=1',
+  'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/34/8d/63/348d6342-2c35-bf31-8131-2c8b3cfe3c09/mzaf_15374551219149804677.plus.aac.p.m4a',
+  'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/f5/92/d7/f592d7a4-19be-c005-6698-1caccacc173c/mzaf_15257808628606025867.plus.aac.p.m4a',
+  'https://discoveryprovider.audius.co/v1/tracks/1424326672/stream?app_name=AIDJStudio',
+  'https://discoveryprovider.audius.co/v1/tracks/212346982/stream?app_name=AIDJStudio',
+  'https://archive.org/download/MoogSynthesizer1969/MoogSynthesizer1969_vbr.mp3',
 ];
 
 class AudioEngine {
