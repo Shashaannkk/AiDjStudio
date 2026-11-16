@@ -7,6 +7,9 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+scratch/
+
+
 node_modules
 dist
 dist-ssr
@@ -16,6 +19,16 @@ dist-ssr
 .env
 .env.*
 !.env.example
+
+# Backups & Temporary Artifacts
+backups/
+scratch/
+
+# Runtime Data & Authentication Sessions (SEC-RUNTIME-DATA-01)
+# Keep only static catalogue fixtures; exclude all runtime user data, tokens & sessions
+data/*
+!data/tracks.json
+!data/.gitkeep
 
 # Editor directories and files
 .vscode/*

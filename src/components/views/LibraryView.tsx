@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Heart, Disc, Sparkles, Play, Plus, X } from 'lucide-react';
 import { usePlayerStore } from '../../store/usePlayerStore';
 import { PlaylistCard } from '../cards/PlaylistCard';
 import { TrackCard } from '../cards/TrackCard';
 import { PROVIDER_MUSIC_CATALOG } from '../../fixtures/musicFixtures';
+import { analyticsService, type UserAnalyticsData } from '../../services/analyticsService';
 
 export const LibraryView: React.FC = () => {
   const {
@@ -22,8 +23,24 @@ export const LibraryView: React.FC = () => {
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [newPlaylistTitle, setNewPlaylistTitle] = useState('');
   const [newPlaylistDesc, setNewPlaylistDesc] = useState('');
+  const [analytics, setAnalytics] = useState<UserAnalyticsData | null>(null);
 
   const likedCount = likedTrackIds.size;
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchAnalytics = async () => {
+      const targetUserId = user?.id || 'usr_default';
+      const data = await analyticsService.getUserAnalytics(targetUserId);
+      if (isMounted && data) {
+        setAnalytics(data);
+      }
+    };
+    fetchAnalytics();
+    return () => {
+      isMounted = false;
+    };
+  }, [user?.id]);
 
   const handleOpenLiked = () => {
     const likedPl = userPlaylists.find((p) => p.id === 'pl_liked') || {
@@ -122,41 +139,47 @@ export const LibraryView: React.FC = () => {
           </div>
 
           <div className="space-y-2">
-            {likedTracks.slice(0, 3).map((track) => {
-              const isCurrent = currentTrack?.id === track.id;
-              return (
-                <div
-                  key={track.id}
-                  onClick={() => (isCurrent ? togglePlay() : playTrack(track))}
-                  className="group flex items-center justify-between p-2 rounded-lg bg-[#242424]/60 hover:bg-[#282828] transition-colors cursor-pointer"
-                >
-                  <div className="flex items-center gap-3 min-w-0 pr-2">
-                    <img
-                      src={track.image}
-                      alt={track.title}
-                      className="w-10 h-10 rounded-md object-cover flex-shrink-0"
-                    />
-                    <div className="min-w-0">
-                      <p
-                        className={`text-xs font-semibold truncate ${
-                          isCurrent ? 'text-[#1DB954]' : 'text-white'
-                        }`}
-                      >
-                        {track.title}
-                      </p>
-                      <p className="text-[11px] text-[#B3B3B3] truncate">{track.artist_name}</p>
-                    </div>
-                  </div>
-
-                  <button
-                    aria-label="Play track"
-                    className="w-8 h-8 rounded-full bg-[#1DB954] text-black flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:scale-105"
+            {likedTracks.length === 0 ? (
+              <div className="p-4 text-center text-xs text-[#B3B3B3]">
+                No liked tracks yet. Tap the heart on any track to save it here.
+              </div>
+            ) : (
+              likedTracks.slice(0, 3).map((track) => {
+                const isCurrent = currentTrack?.id === track.id;
+                return (
+                  <div
+                    key={track.id}
+                    onClick={() => (isCurrent ? togglePlay() : playTrack(track))}
+                    className="group flex items-center justify-between p-2 rounded-lg bg-[#242424]/60 hover:bg-[#282828] transition-colors cursor-pointer"
                   >
-                    <Play className="w-4 h-4 fill-black stroke-black ml-0.5" />
-                  </button>
-                </div>
-              );
-            })}
+                    <div className="flex items-center gap-3 min-w-0 pr-2">
+                      <img
+                        src={track.image}
+                        alt={track.title}
+                        className="w-10 h-10 rounded-md object-cover flex-shrink-0"
+                      />
+                      <div className="min-w-0">
+                        <p
+                          className={`text-xs font-semibold truncate ${
+                            isCurrent ? 'text-[#1DB954]' : 'text-white'
+                          }`}
+                        >
+                          {track.title}
+                        </p>
+                        <p className="text-[11px] text-[#B3B3B3] truncate">{track.artist_name}</p>
+                      </div>
+                    </div>
+
+                    <button
+                      aria-label="Play track"
+                      className="w-8 h-8 rounded-full bg-[#1DB954] text-black flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:scale-105"
+                    >
+                      <Play className="w-4 h-4 fill-black stroke-black ml-0.5" />
+                    </button>
+                  </div>
+                );
+              })
+            )}
           </div>
         </div>
       </div>
@@ -173,11 +196,17 @@ export const LibraryView: React.FC = () => {
           </h3>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-          {userPlaylists.map((playlist) => (
-            <PlaylistCard key={playlist.id} playlist={playlist} />
-          ))}
-        </div>
+        {userPlaylists.length === 0 ? (
+          <div className="p-8 text-center text-xs text-[#B3B3B3] rounded-xl bg-[#181818] border border-white/5">
+            No playlists created yet. Click "New Playlist" above to create your first collection.
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+            {userPlaylists.map((playlist) => (
+              <PlaylistCard key={playlist.id} playlist={playlist} />
+            ))}
+          </div>
+        )}
       </section>
 
       {/* Featured Master Catalog Showcase Section */}
@@ -214,24 +243,38 @@ export const LibraryView: React.FC = () => {
 
       {/* Listening Stats & AI Insights */}
       <section className="p-6 rounded-2xl bg-[#181818] border border-white/5 space-y-4">
-        <h4 className="text-lg font-bold text-white">Your Listening & AI DJ Profile</h4>
+        <div className="flex items-center justify-between">
+          <h4 className="text-lg font-bold text-white">Your Listening & AI DJ Profile</h4>
+          <button
+            onClick={() => setCurrentView('profile')}
+            className="text-xs text-[#1DB954] hover:underline font-semibold"
+          >
+            View Full Analytics →
+          </button>
+        </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           <div className="p-4 rounded-xl bg-[#242424] border border-white/5">
             <span className="text-xs text-[#B3B3B3]">Preferred BPM</span>
-            <p className="text-2xl font-black text-[#1DB954] mt-1">124 BPM</p>
+            <p className="text-2xl font-black text-[#1DB954] mt-1">
+              {analytics?.preferredBpm ? `${analytics.preferredBpm} BPM` : '124 BPM'}
+            </p>
           </div>
           <div className="p-4 rounded-xl bg-[#242424] border border-white/5">
             <span className="text-xs text-[#B3B3B3]">Top Key Compatibility</span>
-            <p className="text-2xl font-black text-[#8C52FF] mt-1">Camelot 8A</p>
+            <p className="text-2xl font-black text-[#8C52FF] mt-1">
+              {analytics?.topKey ? `Camelot ${analytics.topKey}` : 'Camelot 8A'}
+            </p>
           </div>
           <div className="p-4 rounded-xl bg-[#242424] border border-white/5">
             <span className="text-xs text-[#B3B3B3]">Tracks Liked</span>
             <p className="text-2xl font-black text-white mt-1">{likedCount}</p>
           </div>
           <div className="p-4 rounded-xl bg-[#242424] border border-white/5">
-            <span className="text-xs text-[#B3B3B3]">Active Live Rooms</span>
-            <p className="text-2xl font-black text-[#1DB954] mt-1">4 Online</p>
+            <span className="text-xs text-[#B3B3B3]">Listening Time</span>
+            <p className="text-2xl font-black text-[#1DB954] mt-1">
+              {analytics ? `${Math.round(analytics.totalListeningMinutes)} min` : '0 min'}
+            </p>
           </div>
         </div>
       </section>

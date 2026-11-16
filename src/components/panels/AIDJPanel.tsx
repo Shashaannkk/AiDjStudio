@@ -1,5 +1,5 @@
 import React from 'react';
-import { Sparkles, Activity, Zap, RefreshCw } from 'lucide-react';
+import { Sparkles, Activity, Zap, RefreshCw, Sliders } from 'lucide-react';
 import { usePlayerStore } from '../../store/usePlayerStore';
 import { Visualizer } from '../common/Visualizer';
 
@@ -11,6 +11,7 @@ export const AIDJPanel: React.FC = () => {
     transitionInsight,
     triggerAiTransition,
     isPlaying,
+    setRightPanelView,
   } = usePlayerStore();
 
   return (
@@ -103,6 +104,15 @@ export const AIDJPanel: React.FC = () => {
                 <span>Trigger Smooth Crossfade</span>
               </>
             )}
+          </button>
+
+          {/* Open Full AI DJ Console Link */}
+          <button
+            onClick={() => setRightPanelView('aidj')}
+            className="w-full py-1 text-[10px] text-[#1DB954] hover:text-[#1ed760] font-bold flex items-center justify-center gap-1 transition-colors cursor-pointer"
+          >
+            <Sliders className="w-3 h-3" />
+            <span>Open AI DJ Recommendations & Moods →</span>
           </button>
         </div>
       ) : (

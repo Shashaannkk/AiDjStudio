@@ -8,6 +8,9 @@ import {
   Plus,
   ChevronDown,
   ChevronUp,
+  Disc,
+  ShieldAlert,
+  Activity,
 } from 'lucide-react';
 import { Logo } from '../common/Logo';
 import { usePlayerStore, type ViewType } from '../../store/usePlayerStore';
@@ -28,8 +31,10 @@ export const Sidebar: React.FC = () => {
   const mainNavItems = [
     { id: 'home' as ViewType, label: 'Home', icon: Home },
     { id: 'search' as ViewType, label: 'Search', icon: Search },
+    { id: 'mixer' as ViewType, label: 'DJ Decks', icon: Disc, badge: 'PRO' },
     { id: 'library' as ViewType, label: 'Your Library', icon: Library },
     { id: 'rooms' as ViewType, label: 'Live Rooms', icon: Users, badge: 'LIVE' },
+    { id: 'profile' as ViewType, label: 'Analytics', icon: Activity },
   ];
 
   const handleNavClick = (viewId: ViewType) => {
@@ -69,7 +74,7 @@ export const Sidebar: React.FC = () => {
         {mainNavItems.map((item, index) => {
           const Icon = item.icon;
           const isActive =
-            currentView === item.id && !selectedPlaylist && index < 3;
+            currentView === item.id && !selectedPlaylist;
 
           return (
             <button
@@ -95,6 +100,26 @@ export const Sidebar: React.FC = () => {
             </button>
           );
         })}
+
+        {/* Admin Console Navigation Item */}
+        <button
+          onClick={() => handleNavClick('admin')}
+          className={`w-full flex items-center gap-4 px-3 py-2.5 rounded-md text-sm font-semibold transition-all duration-150 cursor-pointer ${
+            currentView === 'admin'
+              ? 'text-white bg-[#282828] font-bold shadow-sm'
+              : 'text-[#B3B3B3] hover:text-white hover:bg-white/5'
+          }`}
+        >
+          <ShieldAlert
+            className={`w-5 h-5 transition-colors ${
+              currentView === 'admin' ? 'text-red-400' : 'text-[#B3B3B3]'
+            }`}
+          />
+          <span className={currentView === 'admin' ? 'text-red-400' : ''}>Admin Console</span>
+          <span className="ml-auto text-[9px] uppercase font-black tracking-wider px-1.5 py-0.5 rounded bg-red-500/20 text-red-400 border border-red-500/30">
+            STAFF
+          </span>
+        </button>
       </nav>
 
       {/* Divider */}

@@ -2,6 +2,7 @@ import React from 'react';
 import { Play, Pause, Heart, Sparkles } from 'lucide-react';
 import type { Track } from '../../types/music';
 import { usePlayerStore } from '../../store/usePlayerStore';
+import { providerAdapter } from '../../services/providerAdapters';
 
 interface TrackCardProps {
   track: Track;
@@ -84,11 +85,26 @@ export const TrackCard: React.FC<TrackCardProps> = ({ track, showBpm = false, cl
         </button>
 
         {/* Active Equalizer animation badge */}
-        {isCardPlaying && (
+        {isCardPlaying ? (
           <div className="absolute top-2 left-2 px-1.5 py-0.5 rounded bg-black/70 backdrop-blur-md flex items-center gap-0.5">
             <span className="w-1 h-3 bg-[#1DB954] rounded-full equalizer-bar-1" />
             <span className="w-1 h-4 bg-[#1DB954] rounded-full equalizer-bar-2" />
             <span className="w-1 h-2 bg-[#1DB954] rounded-full equalizer-bar-3" />
+          </div>
+        ) : (
+          <div className="absolute top-2 left-2">
+            {providerAdapter.isFullLength(track) ? (
+              <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-black/60 backdrop-blur-md text-emerald-400 border border-emerald-500/30">
+                Full
+              </span>
+            ) : (
+              <span
+                className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase bg-black/60 backdrop-blur-md text-amber-400 border border-amber-500/30"
+                title="Apple Music 30-second preview"
+              >
+                Preview
+              </span>
+            )}
           </div>
         )}
       </div>

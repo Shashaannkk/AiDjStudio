@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Play, Heart, Clock, Shuffle, ChevronLeft, Music, Sparkles } from 'lucide-react';
+import { Play, Heart, Clock, Shuffle, ChevronLeft, Music, Sparkles, Trash2 } from 'lucide-react';
 import { usePlayerStore } from '../../store/usePlayerStore';
 import { FIXTURE_TRACKS } from '../../fixtures/musicFixtures';
 import { musicService } from '../../services/musicService';
@@ -19,6 +19,7 @@ export const PlaylistDetailView: React.FC = () => {
     toggleLike,
     isShuffle,
     toggleShuffle,
+    removeTrackFromPlaylist,
   } = usePlayerStore();
 
   const isLikedView = currentView === 'liked' || selectedPlaylist?.id === 'pl_liked';
@@ -225,8 +226,21 @@ export const PlaylistDetailView: React.FC = () => {
                     </span>
                   </div>
 
-                  {/* Duration & Like */}
+                  {/* Duration, Like & Actions */}
                   <div className="col-span-1 flex items-center justify-end gap-2 text-right">
+                    {isCustomUserPlaylist && selectedPlaylist && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          removeTrackFromPlaylist(selectedPlaylist.id, track.id);
+                        }}
+                        aria-label="Remove from playlist"
+                        title="Remove track from playlist"
+                        className="p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity text-[#B3B3B3] hover:text-red-400"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                     <button
                       onClick={(e) => {
                         e.stopPropagation();

@@ -160,12 +160,16 @@ export const SearchView: React.FC = () => {
     { id: 'rooms', label: 'Live Rooms' },
   ];
 
-  const displaySongs =
-    selectedGenre !== 'all' && genreTracks.length > 0
-      ? genreTracks
-      : results.tracks.length > 0
-      ? results.tracks
-      : initialAllTracks;
+  const isSearching = searchQuery.trim().length > 0;
+  const isGenreFiltering = selectedGenre !== 'all';
+
+  const displaySongs = isSearching
+    ? results.tracks
+    : isGenreFiltering
+    ? genreTracks
+    : initialAllTracks;
+
+  const showEmptySearchState = isSearching && !loading && results.tracks.length === 0;
 
   return (
     <div className="space-y-8 pb-16 animate-fadeIn select-none">
@@ -443,17 +447,31 @@ export const SearchView: React.FC = () => {
                 </div>
               </div>
 
-              {displaySongs.length > 0 ? (
+              {showEmptySearchState ? (
+                <div className="rounded-2xl border border-white/5 bg-[#181818] p-8 text-center space-y-3">
+                  <div className="w-12 h-12 rounded-full bg-white/5 text-[#B3B3B3] flex items-center justify-center mx-auto">
+                    <Music className="w-6 h-6" />
+                  </div>
+                  <h4 className="text-base font-bold text-white">No tracks found for "{searchQuery}"</h4>
+                  <p className="text-xs text-[#B3B3B3] max-w-sm mx-auto">
+                    Please check spelling, try searching by artist name, or explore different genres.
+                  </p>
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    className="px-4 py-2 rounded-full bg-white/10 hover:bg-white/20 text-xs font-bold text-white transition-colors cursor-pointer"
+                  >
+                    Clear Search
+                  </button>
+                </div>
+              ) : displaySongs.length > 0 ? (
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
                   {displaySongs.map((track) => (
                     <TrackCard key={track.id} track={track} showBpm className="w-full min-w-0" />
                   ))}
                 </div>
               ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-                  {initialAllTracks.map((track) => (
-                    <TrackCard key={track.id} track={track} showBpm className="w-full min-w-0" />
-                  ))}
+                <div className="rounded-2xl border border-white/5 bg-[#181818] p-8 text-center space-y-2">
+                  <p className="text-xs text-[#B3B3B3]">No songs available in this category.</p>
                 </div>
               )}
             </section>

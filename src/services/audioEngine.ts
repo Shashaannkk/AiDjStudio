@@ -28,6 +28,9 @@ class AudioEngine {
   private fallbackTime = 0;
   private targetDuration = 210;
   private isRetryingFallback = false;
+  private currentTrackId: string | null = null;
+  private isChangingSource = false;
+  private currentPlaybackRate = 1.0;
 
   constructor() {
     if (typeof window !== 'undefined') {
@@ -36,24 +39,28 @@ class AudioEngine {
       this.audioElem.preload = 'auto';
       // Note: crossOrigin is intentionally omitted so the browser plays cross-origin streams directly
       this.audioElem.loop = false;
+      if ('preservesPitch' in this.audioElem) {
+        (this.audioElem as any).preservesPitch = true;
+      }
 
       this.audioElem.ontimeupdate = () => {
-        if (!this.audioElem) return;
+        if (!this.audioElem || this.isChangingSource) return;
         const cur = this.audioElem.currentTime;
         const dur = this.audioElem.duration && !isNaN(this.audioElem.duration) && this.audioElem.duration > 0
           ? this.audioElem.duration
           : this.targetDuration;
 
         if (this.onTimeUpdateCallback) {
-          this.onTimeUpdateCallback(Math.floor(cur), Math.round(dur));
+          // AUD-01 Fix: Preserve floating-point seconds for sub-100ms drift calculation
+          this.onTimeUpdateCallback(cur, dur);
         }
       };
 
       this.audioElem.onloadedmetadata = () => {
         if (this.audioElem && this.audioElem.duration && !isNaN(this.audioElem.duration)) {
-          this.targetDuration = Math.round(this.audioElem.duration);
-          if (this.onTimeUpdateCallback) {
-            this.onTimeUpdateCallback(Math.floor(this.audioElem.currentTime), this.targetDuration);
+          this.targetDuration = this.audioElem.duration;
+          if (this.onTimeUpdateCallback && !this.isChangingSource) {
+            this.onTimeUpdateCallback(this.audioElem.currentTime, this.targetDuration);
           }
         }
       };
@@ -114,7 +121,7 @@ class AudioEngine {
    * Play track starting from second 0:00 through the entire song duration
    */
   public async playTrack(
-    _trackId: string,
+    trackId: string,
     audioUrl?: string,
     startFromSec = 0,
     bpm = 120,
@@ -126,6 +133,7 @@ class AudioEngine {
     this.targetDuration = totalDuration > 0 ? totalDuration : 210;
     this.fallbackTime = startFromSec || 0;
     this.isRetryingFallback = false;
+    this.currentTrackId = trackId;
 
     this.stopSynthGroove();
     this.stopFallbackTimer();
@@ -138,14 +146,57 @@ class AudioEngine {
 
     if (this.audioElem) {
       this.isLiveStream = true;
+      this.isChangingSource = true;
       this.audioElem.pause();
       this.audioElem.volume = this.volume;
+
+      // Reset previous position to 0 immediately
+      try {
+        this.audioElem.currentTime = 0;
+      } catch {}
+
+      if (this.onTimeUpdateCallback) {
+        this.onTimeUpdateCallback(startFromSec || 0, this.targetDuration);
+      }
+
       this.audioElem.src = targetUrl;
-      this.audioElem.currentTime = startFromSec || 0;
+
+      // Wait for media readiness before setting exact start position
+      const onMetadataReady = () => {
+        if (!this.audioElem) return;
+        this.audioElem.removeEventListener('loadedmetadata', onMetadataReady);
+        this.audioElem.removeEventListener('canplay', onMetadataReady);
+        this.isChangingSource = false;
+
+        if (this.audioElem.duration && !isNaN(this.audioElem.duration) && this.audioElem.duration > 0) {
+          this.targetDuration = this.audioElem.duration;
+        }
+
+        if (startFromSec > 0 && this.audioElem.duration && startFromSec < this.audioElem.duration) {
+          try {
+            this.audioElem.currentTime = startFromSec;
+          } catch {}
+        } else {
+          try {
+            this.audioElem.currentTime = 0;
+          } catch {}
+        }
+
+        if (this.onTimeUpdateCallback) {
+          this.onTimeUpdateCallback(this.audioElem.currentTime, this.targetDuration);
+        }
+      };
+
+      this.audioElem.addEventListener('loadedmetadata', onMetadataReady);
+      this.audioElem.addEventListener('canplay', onMetadataReady);
 
       try {
         await this.audioElem.play();
-      } catch (e) {
+      } catch (e: any) {
+        if (e && e.name === 'AbortError') {
+          // Playback request was interrupted by another load/pause action; do not trigger fallback
+          return;
+        }
         console.warn('Direct stream playback error, attempting fallback stream:', e);
         if (!this.isRetryingFallback) {
           this.isRetryingFallback = true;
@@ -213,6 +264,10 @@ class AudioEngine {
     }
   }
 
+  public getCurrentTrackId(): string | null {
+    return this.currentTrackId;
+  }
+
   public pause() {
     this.isPlaying = false;
     if (this.audioElem) {
@@ -253,8 +308,25 @@ class AudioEngine {
     }
 
     if (this.onTimeUpdateCallback) {
-      this.onTimeUpdateCallback(Math.round(clamped), this.targetDuration);
+      this.onTimeUpdateCallback(clamped, this.targetDuration);
     }
+  }
+
+  public setPlaybackRate(rate = 1.0) {
+    const clamped = Math.max(0.5, Math.min(2.0, rate));
+    this.currentPlaybackRate = clamped;
+    if (this.audioElem) {
+      try {
+        this.audioElem.playbackRate = clamped;
+        if ('preservesPitch' in this.audioElem) {
+          (this.audioElem as any).preservesPitch = true;
+        }
+      } catch {}
+    }
+  }
+
+  public getPlaybackRate(): number {
+    return this.audioElem ? this.audioElem.playbackRate : this.currentPlaybackRate;
   }
 
   public setVolume(val: number) {
@@ -381,4 +453,5 @@ class AudioEngine {
   }
 }
 
+export { AudioEngine };
 export const audioEngine = new AudioEngine();

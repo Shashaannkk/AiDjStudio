@@ -1,5 +1,6 @@
 import type { ChatMessage } from '../types/music';
 import { FIXTURE_CHAT_MESSAGES } from '../fixtures/musicFixtures';
+import { userService } from './userService';
 
 const CHAT_STORAGE_PREFIX = 'aidj_chat_history_';
 
@@ -27,13 +28,28 @@ class ChatService {
 
     // 2. Connect to Server-Sent Events (SSE) stream for cross-browser, incognito & cross-device real-time sync
     this.initSseStream();
+
+    // 3. Listen for auth changes to reconnect SSE with current token
+    userService.onAuthChange(() => {
+      this.reconnectSse();
+    });
+  }
+
+  public reconnectSse() {
+    if (this.eventSource) {
+      this.eventSource.close();
+      this.eventSource = null;
+    }
+    this.initSseStream();
   }
 
   private initSseStream() {
     if (typeof window === 'undefined' || typeof EventSource === 'undefined') return;
 
     try {
-      this.eventSource = new EventSource('/api/chat/stream');
+      const token = userService.getAuthToken();
+      const url = token ? `/api/chat/stream?token=${encodeURIComponent(token)}` : '/api/chat/stream';
+      this.eventSource = new EventSource(url);
       this.eventSource.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);

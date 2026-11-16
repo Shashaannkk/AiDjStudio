@@ -22,11 +22,11 @@ import {
   FIXTURE_LIVE_ROOMS,
   FIXTURE_TRACKS,
   FIXTURE_ARTISTS,
-  JAMENDO_CATALOG_TRACKS,
   TRENDING_INDIA_TRACKS,
 } from '../../fixtures/musicFixtures';
 import { usePlayerStore } from '../../store/usePlayerStore';
 import { musicService } from '../../services/musicService';
+import { recommendationEngine } from '../../services/recommendationEngine';
 import type { Track } from '../../types/music';
 
 export const HomeView: React.FC = () => {
@@ -43,13 +43,25 @@ export const HomeView: React.FC = () => {
     openAuthModal,
   } = usePlayerStore();
 
-  const [recommendedTracks, setRecommendedTracks] = useState<Track[]>([
-    ...FIXTURE_ARTISTS.flatMap((a) => a.popularTracks),
-    ...FIXTURE_TRACKS,
-    ...JAMENDO_CATALOG_TRACKS,
-  ]);
+  const deterministicRecommendations = React.useMemo(() => {
+    const candidates = recommendationEngine.recommend({
+      currentTrack,
+      history,
+      likedTrackIds,
+      limit: 12,
+    });
+    return candidates.map((c) => c.track);
+  }, [currentTrack, history, likedTrackIds]);
+
+  const [externalRecommendedTracks, setExternalRecommendedTracks] = useState<Track[]>([]);
   const [selectedAiCategory, setSelectedAiCategory] = useState<string>('all');
   const [aiCategorizedTracks, setAiCategorizedTracks] = useState<Track[]>([]);
+
+  const recommendedTracks = deterministicRecommendations.length > 0
+    ? deterministicRecommendations
+    : externalRecommendedTracks.length > 0
+    ? externalRecommendedTracks
+    : FIXTURE_TRACKS;
 
   const trendingIndiaRef = useRef<HTMLDivElement>(null);
   const popularMixesRef = useRef<HTMLDivElement>(null);
@@ -58,12 +70,12 @@ export const HomeView: React.FC = () => {
   const recommendedRef = useRef<HTMLDivElement>(null);
   const aiCategoryRef = useRef<HTMLDivElement>(null);
 
-  // Fetch real-time recommended tracks from live music provider
+  // Fetch optional fallback external recommended tracks
   useEffect(() => {
     let active = true;
     musicService.getRecommendedTracks().then((tracks) => {
       if (active && tracks && tracks.length > 0) {
-        setRecommendedTracks(tracks);
+        setExternalRecommendedTracks(tracks);
       }
     });
     return () => {

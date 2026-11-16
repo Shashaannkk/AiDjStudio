@@ -12,6 +12,8 @@ import {
   Disc3,
   ExternalLink,
   Users,
+  AlertCircle,
+  Loader2,
 } from 'lucide-react';
 import { usePlayerStore } from '../../store/usePlayerStore';
 import { userService } from '../../services/userService';
@@ -32,6 +34,8 @@ export const AuthModal: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
 
   // Spinning disc album cover auto-cycling every 3 seconds
   const [coverIndex, setCoverIndex] = useState(0);
@@ -194,22 +198,51 @@ export const AuthModal: React.FC = () => {
     setIsGoogleLoading(false);
   };
 
-  const handleEmailSubmit = (e: React.FormEvent) => {
+  const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setAuthError(null);
     const cleanEmail = email.trim();
-    const displayName = isLogin
-      ? cleanEmail.includes('@')
-        ? cleanEmail.split('@')[0]
-        : cleanEmail || 'DJ User'
-      : fullName.trim() || 'DJ User';
 
-    login({
-      id: `usr_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
-      name: displayName,
-      email: cleanEmail || `${displayName.toLowerCase()}@aidjstudio.com`,
-      avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?q=80&w=200&auto=format&fit=crop',
-    });
-    closeAuthModal();
+    if (!cleanEmail) {
+      setAuthError('Please enter a valid email address.');
+      return;
+    }
+
+    if (!password || password.length < 6) {
+      setAuthError('Password must be at least 6 characters.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      if (isLogin) {
+        const { user, error } = await userService.signInWithEmail(cleanEmail, password);
+        if (error) {
+          setAuthError(error);
+          setIsSubmitting(false);
+          return;
+        }
+        if (user) {
+          login(user);
+          closeAuthModal();
+        }
+      } else {
+        const { user, error } = await userService.signUpWithEmail(cleanEmail, password, fullName);
+        if (error) {
+          setAuthError(error);
+          setIsSubmitting(false);
+          return;
+        }
+        if (user) {
+          login(user);
+          closeAuthModal();
+        }
+      }
+    } catch (err: any) {
+      setAuthError(err.message || 'Authentication error.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -481,6 +514,12 @@ export const AuthModal: React.FC = () => {
 
           {/* Email / Password Form */}
           <form onSubmit={handleEmailSubmit} className="space-y-3">
+            {authError && (
+              <div className="p-2.5 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-xs flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-red-400" />
+                <span className="leading-relaxed">{authError}</span>
+              </div>
+            )}
             {!isLogin && (
               <div className="space-y-1">
                 <label className="text-[11px] font-semibold text-[#B3B3B3]">Full Name</label>
@@ -537,10 +576,20 @@ export const AuthModal: React.FC = () => {
 
             <button
               type="submit"
-              className="w-full h-11 rounded-full bg-[#1DB954] hover:bg-[#1ed760] text-black font-bold text-xs sm:text-sm transition-all transform hover:scale-[1.01] active:scale-[0.99] shadow-lg shadow-[#1DB954]/25 flex items-center justify-center gap-2 cursor-pointer mt-1"
+              disabled={isSubmitting}
+              className="w-full h-11 rounded-full bg-[#1DB954] hover:bg-[#1ed760] disabled:opacity-60 disabled:cursor-not-allowed text-black font-bold text-xs sm:text-sm transition-all transform hover:scale-[1.01] active:scale-[0.99] shadow-lg shadow-[#1DB954]/25 flex items-center justify-center gap-2 cursor-pointer mt-1"
             >
-              <span>{isLogin ? 'Sign In to Studio' : 'Create Account & Start Mixing'}</span>
-              <ArrowRight className="w-4 h-4" />
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>{isLogin ? 'Signing In...' : 'Creating Account...'}</span>
+                </>
+              ) : (
+                <>
+                  <span>{isLogin ? 'Sign In to Studio' : 'Create Account & Start Mixing'}</span>
+                  <ArrowRight className="w-4 h-4" />
+                </>
+              )}
             </button>
           </form>
         </div>

@@ -7,6 +7,9 @@ import { LiveRoomsView } from '../views/LiveRoomsView';
 import { PlaylistDetailView } from '../views/PlaylistDetailView';
 import { ArtistDetailView } from '../views/ArtistDetailView';
 import { MusicProvidersView } from '../views/MusicProvidersView';
+import { DJMixingStudioView } from '../views/DJMixingStudioView';
+import { AdminDashboardView } from '../views/AdminDashboardView';
+import { UserDashboardView } from '../views/UserDashboardView';
 
 export const MainContent: React.FC = () => {
   const { currentView } = usePlayerStore();
@@ -28,6 +31,12 @@ export const MainContent: React.FC = () => {
         return <PlaylistDetailView />;
       case 'artist':
         return <ArtistDetailView />;
+      case 'mixer':
+        return <DJMixingStudioView />;
+      case 'admin':
+        return <AdminDashboardView />;
+      case 'profile':
+        return <UserDashboardView />;
       default:
         return <HomeView />;
     }

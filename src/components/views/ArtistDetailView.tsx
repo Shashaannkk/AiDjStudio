@@ -10,7 +10,7 @@ import {
   ArrowLeft,
 } from 'lucide-react';
 import { usePlayerStore } from '../../store/usePlayerStore';
-import { FIXTURE_ARTISTS } from '../../fixtures/musicFixtures';
+import { FIXTURE_ARTISTS, PROVIDER_MUSIC_CATALOG } from '../../fixtures/musicFixtures';
 import type { Track } from '../../types/music';
 
 export const ArtistDetailView: React.FC = () => {
@@ -33,11 +33,24 @@ export const ArtistDetailView: React.FC = () => {
 
   // Default to Doja Cat fixture if no artist selected
   const artist = selectedArtist || FIXTURE_ARTISTS[0];
-  const visibleTracks = showAllTracks ? artist.popularTracks : artist.popularTracks.slice(0, 8);
+
+  // Dynamically resolve artist tracks from global catalogue if popularTracks is missing or sparse
+  const artistTracks = React.useMemo(() => {
+    if (artist.popularTracks && artist.popularTracks.length > 0) {
+      return artist.popularTracks;
+    }
+    const cleanName = (artist.name || '').toLowerCase();
+    const catalogMatches = PROVIDER_MUSIC_CATALOG.filter(
+      (t) => t.artist_name.toLowerCase().includes(cleanName) || cleanName.includes(t.artist_name.toLowerCase())
+    );
+    return catalogMatches.length > 0 ? catalogMatches : FIXTURE_ARTISTS[0].popularTracks;
+  }, [artist]);
+
+  const visibleTracks = showAllTracks ? artistTracks : artistTracks.slice(0, 8);
 
   const handlePlayArtist = () => {
-    if (!artist.popularTracks || artist.popularTracks.length === 0) return;
-    const first = artist.popularTracks[0];
+    if (!artistTracks || artistTracks.length === 0) return;
+    const first = artistTracks[0];
     if (currentTrack?.id === first.id) {
       togglePlay();
     } else {
@@ -297,12 +310,12 @@ export const ArtistDetailView: React.FC = () => {
             })}
           </div>
 
-          {artist.popularTracks.length > 8 && (
+          {artistTracks.length > 8 && (
             <button
               onClick={() => setShowAllTracks(!showAllTracks)}
               className="mt-4 px-4 py-2 text-xs font-bold uppercase tracking-wider text-[#B3B3B3] hover:text-white transition-colors hover:underline"
             >
-              {showAllTracks ? 'Show fewer tracks' : `See more (${artist.popularTracks.length} tracks)`}
+              {showAllTracks ? 'Show fewer tracks' : `See more (${artistTracks.length} tracks)`}
             </button>
           )}
         </div>

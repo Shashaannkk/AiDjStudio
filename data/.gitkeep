@@ -1,0 +1,3 @@
+# AI DJ Studio Data Directory
+# Only static fixtures (like tracks.json) are tracked in Git.
+# All runtime JSON databases are dynamically created on initial boot.

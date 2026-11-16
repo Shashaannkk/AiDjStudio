@@ -13,13 +13,15 @@ export type MusicProvider =
   | 'archive'
   | 'aidj';
 
+export type PlaybackCapability = 'full_length' | 'preview';
+
 export interface Track {
   id: string;
   title: string;
   artist_name: string;
   album_name?: string;
   image: string;
-  duration: number; // in seconds
+  duration: number; // in seconds (Playable stream duration or studio duration)
   audio: string;
   genre?: string;
   bpm?: number;
@@ -35,6 +37,18 @@ export interface Track {
   provider?: MusicProvider;
   releaseYear?: string;
   addedAt?: string;
+
+  // Provider Reliability & Full-Length vs Preview Playback Fields
+  streamType?: 'full' | 'preview'; // 'full' for complete recording, 'preview' for 30s sample
+  isFullLength?: boolean; // true if full recording, false if preview
+  streamDuration?: number; // exact playable duration of the audio stream (e.g. 30 for preview)
+  fullTrackDuration?: number; // full recording length (e.g. 210 for a 3:30 song)
+  previewUrl?: string; // 30s preview URL if available
+  fullStreamUrl?: string; // verified full-length stream URL if available
+  downloadUrl?: string; // permitted download URL if available
+  providerName?: string; // human-readable provider name
+  streamStatus?: 'available' | 'preview_only' | 'fallback_available' | 'unavailable';
+  alternativeFullTrack?: Track; // linked full-length alternative track
 }
 
 export interface Artist {
@@ -66,18 +80,28 @@ export interface UserProfile {
   email: string;
   avatar: string;
   plan?: string;
+  role?: 'listener' | 'co-dj' | 'host' | 'moderator' | 'admin';
+  status?: 'active' | 'suspended' | 'banned';
 }
+
+export type RoomRole = 'host' | 'co-dj' | 'listener';
 
 export interface RoomParticipant {
   id: string;
   name: string;
   avatar: string;
+  email?: string;
+  role: RoomRole;
+  joinedAt?: string | number;
   isHost?: boolean;
+  isOnline?: boolean;
 }
 
 export interface LiveRoom {
   id: string;
+  code: string;
   name: string;
+  hostId: string;
   hostName: string;
   hostAvatar: string;
   cover: string;
@@ -86,7 +110,11 @@ export interface LiveRoom {
   isLive: boolean;
   tags: string[];
   participants: RoomParticipant[];
+  queue: Track[];
   currentTrack?: Track;
+  currentPosition?: number;
+  isPlaying?: boolean;
+  playbackTimestamp?: number;
 }
 
 export interface ChatMessage {
@@ -97,6 +125,16 @@ export interface ChatMessage {
   message: string;
   timestamp: string;
   isAi?: boolean;
+  isSystem?: boolean;
+}
+
+export interface RoomPlaybackSync {
+  hostId: string;
+  track: Track | null;
+  isPlaying: boolean;
+  position: number;
+  serverTimestamp: number;
+  action?: 'play' | 'pause' | 'seek' | 'track_change' | 'sync_state';
 }
 
 export interface TransitionInsight {

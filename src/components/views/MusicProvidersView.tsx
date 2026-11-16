@@ -14,6 +14,7 @@ import {
 import { usePlayerStore } from '../../store/usePlayerStore';
 import { PROVIDER_MUSIC_CATALOG } from '../../fixtures/musicFixtures';
 import { musicService } from '../../services/musicService';
+import { providerAdapter } from '../../services/providerAdapters';
 import type { Track } from '../../types/music';
 
 export const MusicProvidersView: React.FC = () => {
@@ -302,7 +303,7 @@ export const MusicProvidersView: React.FC = () => {
                 key={key}
                 onClick={() => setSelectedProvider(key)}
                 style={{
-                  backgroundColor: isSelected ? cfg.color : undefined,
+                  backgroundColor: isSelected ? cfg.color : undefined,    
                   color: isSelected ? '#000' : '#E5E7EB',
                   borderColor: isSelected ? cfg.color : undefined,
                 }}
@@ -467,7 +468,7 @@ export const MusicProvidersView: React.FC = () => {
                             aria-label="Play track"
                             className="hidden group-hover:flex w-7 h-7 rounded-full bg-[#1DB954] text-black items-center justify-center shadow-md transform hover:scale-110 active:scale-95 transition-all"
                           >
-                            <Play className="w-3.5 h-3.5 fill-black stroke-black ml-0.5" />
+                            <Play className="w-3.5 h-3.5 fill-black stroke-black ml-0.5" />                 
                           </button>
                         </>
                       )}
@@ -519,7 +520,7 @@ export const MusicProvidersView: React.FC = () => {
                       </span>
                     </div>
 
-                    {/* 4. Provider Badge */}
+                    {/* 4. Provider Badge & Stream Capability */}
                     <div className="col-span-2 hidden md:flex items-center gap-1.5 min-w-0">
                       <span
                         style={{
@@ -527,11 +528,24 @@ export const MusicProvidersView: React.FC = () => {
                           color: providerInfo.color,
                           borderColor: providerInfo.border,
                         }}
-                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase border tracking-wider"
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase border tracking-wider"
                       >
                         <span>{providerInfo.icon}</span>
                         <span>{providerInfo.label}</span>
                       </span>
+
+                      {providerAdapter.isFullLength(track) ? (
+                        <span className="px-1.5 py-0.2 rounded text-[8px] font-black uppercase bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 shrink-0">
+                          Full
+                        </span>
+                      ) : (
+                        <span
+                          className="px-1.5 py-0.2 rounded text-[8px] font-black uppercase bg-amber-500/20 text-amber-400 border border-amber-500/30 shrink-0"
+                          title="Apple Music 30-second preview"
+                        >
+                          Preview
+                        </span>
+                      )}
                     </div>
 
                     {/* 5. Harmonic Key & BPM */}
@@ -604,7 +618,7 @@ export const MusicProvidersView: React.FC = () => {
                   />
 
                   {/* Provider Logo Floating Corner */}
-                  <div className="absolute top-2 left-2">
+                  <div className="absolute top-2 left-2 flex items-center gap-1">
                     <span
                       style={{
                         backgroundColor: providerInfo.bg,
@@ -615,6 +629,15 @@ export const MusicProvidersView: React.FC = () => {
                     >
                       {providerInfo.label}
                     </span>
+                    {providerAdapter.isFullLength(track) ? (
+                      <span className="px-1.5 py-0.5 rounded-full text-[8px] font-black uppercase bg-emerald-500/80 text-white shadow">
+                        Full
+                      </span>
+                    ) : (
+                      <span className="px-1.5 py-0.5 rounded-full text-[8px] font-black uppercase bg-amber-500/80 text-black shadow" title="30-second preview">
+                        30s
+                      </span>
+                    )}
                   </div>
 
                   {/* Floating Play Button */}

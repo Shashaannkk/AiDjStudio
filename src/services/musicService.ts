@@ -101,7 +101,7 @@ class MusicService {
     const artwork = (item.artworkUrl100 || '')
       .replace('100x100bb', '600x600bb')
       .replace('100x100', '600x600');
-    const durSec = Math.round((item.trackTimeMillis || 180000) / 1000);
+    const fullDurSec = Math.round((item.trackTimeMillis || 180000) / 1000);
     const idHash = Math.abs(Number(item.trackId) || 12345);
     const bpm = 100 + (idHash % 40);
     const keys = [
@@ -116,6 +116,9 @@ class MusicService {
     ];
     const key = keys[idHash % keys.length];
 
+    const previewUrl = item.previewUrl || '';
+    const isPreview = Boolean(previewUrl);
+
     return {
       id: `itunes_${item.trackId || Math.random().toString(36).substring(2, 8)}`,
       title: item.trackName || 'Unknown Title',
@@ -124,16 +127,24 @@ class MusicService {
       image:
         artwork ||
         'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?q=80&w=800&auto=format&fit=crop',
-      duration: durSec > 0 ? durSec : 210,
+      // Stream duration is 30s for Apple previews; full recording duration preserved in fullTrackDuration
+      duration: isPreview ? 30 : (fullDurSec > 0 ? fullDurSec : 210),
+      streamDuration: isPreview ? 30 : (fullDurSec > 0 ? fullDurSec : 210),
+      fullTrackDuration: fullDurSec > 0 ? fullDurSec : 210,
+      streamType: isPreview ? 'preview' : 'full',
+      isFullLength: !isPreview,
       audio:
-        item.previewUrl ||
+        previewUrl ||
         'https://prod-1.storage.jamendo.com/?trackid=1885834&format=mp32&ndls=1',
+      previewUrl: previewUrl || undefined,
       genre: item.primaryGenreName || 'Pop',
       bpm,
       key,
       energy: 85 + (idHash % 15),
       liked: false,
       provider: 'apple',
+      providerName: isPreview ? 'Apple Music Preview' : 'Apple Music',
+      streamStatus: isPreview ? 'preview_only' : 'available',
       streamCount: `${(25 + (idHash % 850)).toLocaleString()},000`,
       explicit: item.trackExplicitness === 'explicit',
       releaseYear: item.releaseDate ? item.releaseDate.substring(0, 4) : '2024',

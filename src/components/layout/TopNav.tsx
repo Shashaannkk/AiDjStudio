@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ChevronLeft, ChevronRight, Bell, Users, ChevronDown, PanelRight, LogOut, UserCheck, Sparkles } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Bell, Users, ChevronDown, PanelRight, LogOut, UserCheck, Sparkles, Disc, Bot } from 'lucide-react';
 import { SearchBar } from '../common/SearchBar';
 import { usePlayerStore } from '../../store/usePlayerStore';
 
@@ -8,6 +8,7 @@ export const TopNav: React.FC = () => {
     setCurrentView,
     toggleRightPanel,
     rightPanelOpen,
+    setRightPanelView,
     user,
     openAuthModal,
     logout,
@@ -19,10 +20,10 @@ export const TopNav: React.FC = () => {
   const firstName = user ? user.name.split(' ')[0] : '';
 
   return (
-    <header className="h-16 px-6 bg-[#121212]/90 backdrop-blur-md sticky top-0 z-10 flex items-center justify-between gap-4 border-b border-white/5 select-none">
+    <header className="h-16 px-4 sm:px-6 bg-[#121212]/90 backdrop-blur-md sticky top-0 z-10 flex items-center justify-between gap-3 sm:gap-4 border-b border-white/5 select-none min-w-0">
       {/* Left: History navigation & Search bar */}
-      <div className="flex items-center gap-4 flex-1">
-        <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 sm:gap-4 flex-1 min-w-0">
+        <div className="flex items-center gap-1 sm:gap-2 shrink-0">
           <button
             onClick={() => setCurrentView('home')}
             aria-label="Go back"
@@ -31,6 +32,7 @@ export const TopNav: React.FC = () => {
             <ChevronLeft className="w-5 h-5" />
           </button>
           <button
+            onClick={() => setCurrentView('home')}
             aria-label="Go forward"
             className="w-8 h-8 rounded-full bg-black/60 hover:bg-black text-[#B3B3B3] hover:text-white flex items-center justify-center transition-colors disabled:opacity-40"
           >
@@ -43,7 +45,7 @@ export const TopNav: React.FC = () => {
       </div>
 
       {/* Right: Notifications, Community, User Profile / Login & Panel Toggle */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2 sm:gap-3 shrink-0">
         {/* Notifications */}
         <button
           aria-label="Notifications"
@@ -65,6 +67,28 @@ export const TopNav: React.FC = () => {
           <span className="absolute -top-0.5 -right-0.5 px-1 rounded-full bg-[#1DB954] text-black text-[9px] font-black">
             4
           </span>
+        </button>
+
+        {/* DJ Decks Shortcut */}
+        <button
+          onClick={() => setCurrentView('mixer')}
+          aria-label="DJ Studio Decks"
+          className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 text-xs font-bold transition-all cursor-pointer"
+          title="Open DJ Decks"
+        >
+          <Disc className="w-3.5 h-3.5" />
+          <span>DJ Decks</span>
+        </button>
+
+        {/* AI DJ Assistant Shortcut */}
+        <button
+          onClick={() => setRightPanelView('assistant')}
+          aria-label="AI DJ Assistant"
+          className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-[#1DB954]/15 to-cyan-500/15 hover:from-[#1DB954]/25 hover:to-cyan-500/25 text-[#1DB954] border border-[#1DB954]/30 text-xs font-bold transition-all cursor-pointer"
+          title="Open AI DJ Conversational Assistant"
+        >
+          <Bot className="w-3.5 h-3.5 text-cyan-400" />
+          <span className="text-white">AI Assistant</span>
         </button>
 
         {/* Toggle Right Panel button */}
@@ -110,19 +134,30 @@ export const TopNav: React.FC = () => {
                   <p className="text-xs font-bold text-white truncate">{user.name}</p>
                   <p className="text-[11px] text-[#B3B3B3] truncate">{user.email}</p>
                   <span className="inline-block mt-1 text-[10px] font-bold text-[#1DB954] bg-[#1DB954]/20 px-2 py-0.5 rounded-full uppercase">
-                    Studio DJ Account
+                    {user.role ? `${user.role} DJ Account` : 'Studio DJ Account'}
                   </span>
                 </div>
 
                 <button
                   onClick={() => {
                     setProfileDropdownOpen(false);
-                    setCurrentView('library');
+                    setCurrentView('profile');
                   }}
-                  className="w-full text-left px-4 py-2 text-xs text-[#E5E7EB] hover:bg-white/10 flex items-center gap-2"
+                  className="w-full text-left px-4 py-2 text-xs text-[#E5E7EB] hover:bg-white/10 flex items-center gap-2 cursor-pointer"
                 >
                   <UserCheck className="w-4 h-4 text-[#1DB954]" />
-                  <span>Profile & Library</span>
+                  <span>Sonic Profile & Analytics</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setProfileDropdownOpen(false);
+                    setCurrentView('library');
+                  }}
+                  className="w-full text-left px-4 py-2 text-xs text-[#E5E7EB] hover:bg-white/10 flex items-center gap-2 cursor-pointer"
+                >
+                  <Sparkles className="w-4 h-4 text-cyan-400" />
+                  <span>Your Library</span>
                 </button>
 
                 <button
