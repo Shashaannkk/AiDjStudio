@@ -166,13 +166,6 @@ class ChatService {
     // Notify local listeners in the current tab
     this.messageListeners.forEach((listener) => listener(newMsg, roomId));
 
-    // Optional simulated smart co-host reaction if user mentions drop or vibe
-    if (!isAi && (text.includes('🔥') || text.toLowerCase().includes('drop') || text.toLowerCase().includes('love'))) {
-      setTimeout(() => {
-        this.sendAiReaction(roomId);
-      }, 1200);
-    }
-
     return newMsg;
   }
 
@@ -184,27 +177,6 @@ class ChatService {
     return () => {
       this.messageListeners.delete(callback);
     };
-  }
-
-  /**
-   * Automated AI DJ & community reaction in live room
-   */
-  private sendAiReaction(roomId: string) {
-    const reactions = [
-      'The harmonic transition is locked in! 🎧✨',
-      'Bassline frequency peaking at 128 BPM! 🔥',
-      'Vibe score 98% in this room right now! 🚀',
-      'AI beat-matching active — seamless energy flow.',
-    ];
-    const picked = reactions[Math.floor(Math.random() * reactions.length)];
-    this.sendMessage(
-      roomId,
-      picked,
-      'AI DJ Co-Host',
-      'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?q=80&w=200&auto=format&fit=crop',
-      true,
-      'ai.dj@studio.system'
-    );
   }
 }
 

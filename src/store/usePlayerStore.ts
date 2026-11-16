@@ -149,6 +149,7 @@ interface PlayerState {
   rightPanelOpen: boolean;
   rightPanelView: 'canvas' | 'queue' | 'chat' | 'aidj' | 'assistant';
   lyricsOpen: boolean;
+  mobileMenuOpen: boolean;
 
   setCurrentView: (view: ViewType) => void;
   setSelectedPlaylist: (playlist: Playlist | null) => void;
@@ -161,6 +162,8 @@ interface PlayerState {
   toggleRightPanel: () => void;
   setRightPanelView: (mode: 'canvas' | 'queue' | 'chat' | 'aidj' | 'assistant') => void;
   toggleLyrics: () => void;
+  toggleMobileMenu: () => void;
+  setMobileMenuOpen: (open: boolean) => void;
 }
 
 export const usePlayerStore = create<PlayerState>((set, get) => {
@@ -495,6 +498,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
     rightPanelOpen: false,
     rightPanelView: 'queue',
     lyricsOpen: false,
+    mobileMenuOpen: false,
 
     openAuthModal: (mode = 'login') => {
       set({ authModalOpen: true, authMode: mode });
@@ -1613,6 +1617,14 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
 
     toggleLyrics: () => {
       set((state) => ({ lyricsOpen: !state.lyricsOpen }));
+    },
+
+    toggleMobileMenu: () => {
+      set((state) => ({ mobileMenuOpen: !state.mobileMenuOpen }));
+    },
+
+    setMobileMenuOpen: (open: boolean) => {
+      set({ mobileMenuOpen: open });
     },
 
     // Phase 6: AI DJ Conversational Assistant Actions

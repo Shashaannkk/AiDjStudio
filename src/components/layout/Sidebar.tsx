@@ -11,10 +11,10 @@ import {
   Disc,
   ShieldAlert,
   Activity,
+  X,
 } from 'lucide-react';
 import { Logo } from '../common/Logo';
 import { usePlayerStore, type ViewType } from '../../store/usePlayerStore';
-import { FIXTURE_PLAYLISTS } from '../../fixtures/musicFixtures';
 
 export const Sidebar: React.FC = () => {
   const {
@@ -25,6 +25,8 @@ export const Sidebar: React.FC = () => {
     likedTrackIds,
     userPlaylists,
     createPlaylist,
+    mobileMenuOpen,
+    setMobileMenuOpen,
   } = usePlayerStore();
   const [showAllPlaylists, setShowAllPlaylists] = useState(false);
 
@@ -40,6 +42,7 @@ export const Sidebar: React.FC = () => {
   const handleNavClick = (viewId: ViewType) => {
     setSelectedPlaylist(null);
     setCurrentView(viewId);
+    setMobileMenuOpen(false);
   };
 
   const handlePlaylistClick = (playlist: (typeof userPlaylists)[0]) => {
@@ -50,31 +53,27 @@ export const Sidebar: React.FC = () => {
       setSelectedPlaylist(playlist);
       setCurrentView('playlist');
     }
+    setMobileMenuOpen(false);
   };
 
   const handleQuickCreate = () => {
     const pl = createPlaylist(`My Mix #${userPlaylists.length + 1}`);
     setSelectedPlaylist(pl);
     setCurrentView('playlist');
+    setMobileMenuOpen(false);
   };
 
   const visiblePlaylists = showAllPlaylists
     ? userPlaylists
     : userPlaylists.slice(0, 7);
 
-  return (
-    <aside className="w-64 h-full bg-black flex flex-col flex-shrink-0 select-none border-r border-[#181818] z-20">
-      {/* Brand Logo Header */}
-      <div className="p-6 pb-5 flex items-center">
-        <Logo size="md" />
-      </div>
-
+  const renderNavContent = () => (
+    <>
       {/* Main Navigation */}
       <nav className="px-3 space-y-1">
         {mainNavItems.map((item, index) => {
           const Icon = item.icon;
-          const isActive =
-            currentView === item.id && !selectedPlaylist;
+          const isActive = currentView === item.id && !selectedPlaylist;
 
           return (
             <button
@@ -122,71 +121,81 @@ export const Sidebar: React.FC = () => {
         </button>
       </nav>
 
-      {/* Divider */}
-      <div className="mx-4 my-4 border-t border-[#282828]" />
+      {/* Playlist Library Section */}
+      <div className="flex-1 overflow-y-auto px-3 py-4 mt-2 border-t border-[#181818] space-y-1">
+        <div className="flex items-center justify-between px-3 mb-2">
+          <span className="text-xs font-bold text-[#B3B3B3] uppercase tracking-wider">
+            Playlists
+          </span>
+          <button
+            onClick={handleQuickCreate}
+            className="p-1 text-[#B3B3B3] hover:text-white hover:bg-white/10 rounded-full transition-colors"
+            title="Create Playlist"
+          >
+            <Plus className="w-4 h-4" />
+          </button>
+        </div>
 
-      {/* Playlists Header */}
-      <div className="px-5 pb-3 flex items-center justify-between">
-        <span className="text-xs font-bold uppercase tracking-wider text-[#B3B3B3]">
-          Playlists
-        </span>
+        {/* Liked Songs Entry */}
         <button
-          onClick={handleQuickCreate}
-          aria-label="Create playlist"
-          className="text-[#B3B3B3] hover:text-white p-1 rounded-full hover:bg-white/10 transition-colors cursor-pointer"
-          title="Create Playlist"
-        >
-          <Plus className="w-4 h-4" />
-        </button>
-      </div>
-
-      {/* Scrollable Playlist List - Sized Bigger */}
-      <div className="flex-1 overflow-y-auto px-3 space-y-1.5 py-1">
-        {/* Liked Songs Special Item with Bigger Thumbnail */}
-        <button
-          onClick={() => handlePlaylistClick(FIXTURE_PLAYLISTS[0])}
-          className={`w-full flex items-center gap-3.5 p-2 rounded-lg transition-all ${
-            selectedPlaylist?.id === 'pl_liked' || currentView === 'liked'
-              ? 'bg-[#282828] text-white shadow-sm'
+          onClick={() =>
+            handlePlaylistClick({
+              id: 'pl_liked',
+              name: 'Liked Songs',
+              description: 'All your favorite tracks',
+              image: '',
+              trackCount: likedTrackIds.size,
+              category: 'user',
+            })
+          }
+          className={`w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors ${
+            currentView === 'liked' || selectedPlaylist?.id === 'pl_liked'
+              ? 'bg-[#282828] text-white font-bold'
               : 'text-[#B3B3B3] hover:text-white hover:bg-white/5'
           }`}
         >
-          <div className="w-11 h-11 rounded-lg bg-gradient-to-br from-[#8C52FF] to-[#3B82F6] flex items-center justify-center flex-shrink-0 shadow-md">
-            <Heart className="w-5 h-5 text-white fill-white" />
+          <div className="w-8 h-8 rounded bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center shrink-0 shadow-sm">
+            <Heart className="w-4 h-4 text-white fill-white" />
           </div>
-          <div className="flex flex-col text-left min-w-0">
-            <span className="text-sm font-semibold truncate text-white">Liked Songs</span>
+          <div className="flex flex-col text-left truncate">
+            <span className="font-semibold truncate">Liked Songs</span>
             <span className="text-xs text-[#B3B3B3] truncate">
-              Playlist • {likedTrackIds.size} songs
+              {likedTrackIds.size} songs
             </span>
           </div>
         </button>
 
-        {/* User and Curated Playlists - Sized Bigger with 44px Thumbnails and Subtitle */}
-        {visiblePlaylists.slice(1).map((playlist) => {
+        {/* Custom Playlists list */}
+        {visiblePlaylists.map((playlist) => {
           const isSelected = selectedPlaylist?.id === playlist.id;
+          const isMix = playlist.category === 'mix';
+
           return (
             <button
               key={playlist.id}
               onClick={() => handlePlaylistClick(playlist)}
-              className={`w-full flex items-center gap-3.5 p-2 rounded-lg transition-all text-left ${
+              className={`w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors text-left group ${
                 isSelected
-                  ? 'bg-[#282828] text-white shadow-sm'
+                  ? 'bg-[#282828] text-white font-bold'
                   : 'text-[#B3B3B3] hover:text-white hover:bg-white/5'
               }`}
             >
-              {playlist.image ? (
-                <img
-                  src={playlist.image}
-                  alt={playlist.name}
-                  className="w-11 h-11 rounded-lg object-cover flex-shrink-0 shadow-sm"
-                />
-              ) : (
-                <div className="w-11 h-11 rounded-lg bg-[#282828] flex items-center justify-center text-sm font-bold text-white flex-shrink-0">
-                  {playlist.name[0]}
-                </div>
-              )}
-              <div className="flex flex-col min-w-0">
+              <div
+                className={`w-8 h-8 rounded flex items-center justify-center shrink-0 overflow-hidden ${
+                  isMix ? 'bg-[#181818] border border-white/10' : 'bg-[#282828]'
+                }`}
+              >
+                {playlist.image ? (
+                  <img
+                    src={playlist.image}
+                    alt={playlist.name}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <Disc className="w-4 h-4 text-[#B3B3B3]" />
+                )}
+              </div>
+              <div className="flex flex-col truncate">
                 <span className={`text-sm font-semibold truncate ${isSelected ? 'text-[#1DB954]' : 'text-white'}`}>
                   {playlist.name}
                 </span>
@@ -217,11 +226,51 @@ export const Sidebar: React.FC = () => {
         </button>
       </div>
 
-      {/* Clean Spotify-Style Sidebar Footer */}
+      {/* Clean Sidebar Footer */}
       <div className="p-3 mx-2 mb-1 flex items-center justify-between text-[11px] text-[#71717A] border-t border-white/5">
         <span className="font-medium">AI DJ Studio</span>
         <span className="px-1.5 py-0.5 rounded bg-white/5 text-[9px] font-bold text-[#1DB954]">v2.4 READY</span>
       </div>
-    </aside>
+    </>
+  );
+
+  return (
+    <>
+      {/* Desktop Sidebar (Medium screens & above: hidden on mobile) */}
+      <aside className="hidden md:flex w-60 lg:w-64 h-full bg-black flex-col flex-shrink-0 select-none border-r border-[#181818] z-20">
+        {/* Brand Logo Header */}
+        <div className="p-6 pb-5 flex items-center">
+          <Logo size="md" />
+        </div>
+        {renderNavContent()}
+      </aside>
+
+      {/* Mobile Drawer Overlay (Active when mobileMenuOpen is true) */}
+      {mobileMenuOpen && (
+        <div className="fixed inset-0 z-50 md:hidden flex">
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-black/80 backdrop-blur-sm transition-opacity"
+            onClick={() => setMobileMenuOpen(false)}
+          />
+
+          {/* Drawer content */}
+          <div className="relative w-72 max-w-[85vw] h-full bg-[#121212] border-r border-white/10 flex flex-col z-50 shadow-2xl">
+            {/* Header with Close Button */}
+            <div className="p-4 pb-3 flex items-center justify-between border-b border-white/10">
+              <Logo size="md" />
+              <button
+                onClick={() => setMobileMenuOpen(false)}
+                aria-label="Close menu"
+                className="p-1.5 rounded-full text-[#B3B3B3] hover:text-white hover:bg-white/10 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            {renderNavContent()}
+          </div>
+        </div>
+      )}
+    </>
   );
 };

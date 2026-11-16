@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   ChevronLeft,
   ChevronRight,
@@ -25,7 +25,6 @@ import {
   TRENDING_INDIA_TRACKS,
 } from '../../fixtures/musicFixtures';
 import { usePlayerStore } from '../../store/usePlayerStore';
-import { musicService } from '../../services/musicService';
 import { recommendationEngine } from '../../services/recommendationEngine';
 import type { Track } from '../../types/music';
 
@@ -43,25 +42,34 @@ export const HomeView: React.FC = () => {
     openAuthModal,
   } = usePlayerStore();
 
-  const deterministicRecommendations = React.useMemo(() => {
+  // Stable AI Categorized Track Collections (persists in UI, never vanishes when playing)
+  const aiCategoryMap = React.useMemo<Record<string, Track[]>>(() => {
+    return {
+      all: FIXTURE_POPULAR_MIXES[0]?.tracks || FIXTURE_TRACKS,
+      energy: FIXTURE_POPULAR_MIXES[2]?.tracks || FIXTURE_TRACKS,
+      lofi: FIXTURE_POPULAR_MIXES[1]?.tracks || FIXTURE_TRACKS,
+      latenight: FIXTURE_POPULAR_MIXES[4]?.tracks || FIXTURE_TRACKS,
+      bollywood: FIXTURE_POPULAR_MIXES[5]?.tracks || FIXTURE_TRACKS,
+      synthwave: FIXTURE_POPULAR_MIXES[3]?.tracks || FIXTURE_TRACKS,
+    };
+  }, []);
+
+  const [selectedAiCategory, setSelectedAiCategory] = useState<string>('all');
+
+  const displayedAiTracks = aiCategoryMap[selectedAiCategory] || aiCategoryMap['all'];
+
+  const recommendedTracks = React.useMemo(() => {
     const candidates = recommendationEngine.recommend({
-      currentTrack,
+      currentTrack: null,
       history,
       likedTrackIds,
       limit: 12,
     });
-    return candidates.map((c) => c.track);
-  }, [currentTrack, history, likedTrackIds]);
-
-  const [externalRecommendedTracks, setExternalRecommendedTracks] = useState<Track[]>([]);
-  const [selectedAiCategory, setSelectedAiCategory] = useState<string>('all');
-  const [aiCategorizedTracks, setAiCategorizedTracks] = useState<Track[]>([]);
-
-  const recommendedTracks = deterministicRecommendations.length > 0
-    ? deterministicRecommendations
-    : externalRecommendedTracks.length > 0
-    ? externalRecommendedTracks
-    : FIXTURE_TRACKS;
+    if (candidates.length > 0) {
+      return candidates.map((c) => c.track);
+    }
+    return FIXTURE_POPULAR_MIXES[0]?.tracks || FIXTURE_TRACKS;
+  }, [history, likedTrackIds]);
 
   const trendingIndiaRef = useRef<HTMLDivElement>(null);
   const popularMixesRef = useRef<HTMLDivElement>(null);
@@ -69,47 +77,6 @@ export const HomeView: React.FC = () => {
   const artistsRef = useRef<HTMLDivElement>(null);
   const recommendedRef = useRef<HTMLDivElement>(null);
   const aiCategoryRef = useRef<HTMLDivElement>(null);
-
-  // Fetch optional fallback external recommended tracks
-  useEffect(() => {
-    let active = true;
-    musicService.getRecommendedTracks().then((tracks) => {
-      if (active && tracks && tracks.length > 0) {
-        setExternalRecommendedTracks(tracks);
-      }
-    });
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  // Update AI Categorized tracks when category changes
-  useEffect(() => {
-    let active = true;
-    if (selectedAiCategory === 'all') {
-      return;
-    }
-    const genreMap: Record<string, string> = {
-      energy: 'EDM Festival Dance',
-      lofi: 'Lo-Fi Study Chillhop',
-      latenight: 'Deep House Melodic Night',
-      bollywood: 'Bollywood Dance Hits',
-      synthwave: 'Synthwave Neon 80s',
-    };
-    const genre = genreMap[selectedAiCategory];
-    if (genre) {
-      musicService.getTracksForGenre(genre).then((res) => {
-        if (active && res.length > 0) {
-          setAiCategorizedTracks(res);
-        }
-      });
-    }
-    return () => {
-      active = false;
-    };
-  }, [selectedAiCategory]);
-
-  const displayedAiTracks = selectedAiCategory === 'all' ? recommendedTracks : aiCategorizedTracks;
 
   const scroll = (ref: React.RefObject<HTMLDivElement | null>, direction: 'left' | 'right') => {
     if (ref.current) {
@@ -279,7 +246,7 @@ export const HomeView: React.FC = () => {
       </section>
 
       {/* Section 3: Categories by AI — Redesigned, Clean, Proper Alignment */}
-      <section className="p-6 rounded-2xl bg-gradient-to-r from-[#0d2218]/90 via-[#161616] to-[#1c1228]/90 border border-[#1DB954]/30 shadow-2xl space-y-4">
+      <section className="p-4 sm:p-6 rounded-2xl bg-gradient-to-r from-[#0d2218]/90 via-[#161616] to-[#1c1228]/90 border border-[#1DB954]/30 shadow-2xl space-y-4">
         {/* Header with Title and Scroll Controls */}
         <div className="flex items-center justify-between">
           <div className="space-y-1">

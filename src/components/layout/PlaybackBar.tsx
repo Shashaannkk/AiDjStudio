@@ -85,10 +85,10 @@ export const PlaybackBar: React.FC<PlaybackBarProps> = ({
   };
 
   return (
-    <footer className="h-20 bg-black border-t border-[#282828] px-4 flex items-center justify-between select-none fixed bottom-0 left-0 right-0 z-30">
+    <footer className="h-16 sm:h-20 bg-black/95 backdrop-blur-xl border-t border-[#282828] px-2.5 sm:px-4 flex items-center justify-between select-none fixed bottom-14 md:bottom-0 left-0 right-0 z-30 shadow-2xl">
       {/* 1. Left: Track Info & Like Button */}
-      <div className="flex items-center gap-2 sm:gap-3.5 w-1/4 min-w-[140px] sm:min-w-[180px] shrink-0">
-        <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-md overflow-hidden bg-[#282828] flex-shrink-0 shadow-md">
+      <div className="flex items-center gap-2 sm:gap-3.5 max-w-[130px] sm:max-w-[180px] md:max-w-xs shrink-0">
+        <div className="w-10 h-10 sm:w-13 sm:h-13 rounded-md overflow-hidden bg-[#282828] flex-shrink-0 shadow-md">
           <img
             src={currentTrack.image}
             alt={currentTrack.title}
@@ -96,7 +96,7 @@ export const PlaybackBar: React.FC<PlaybackBarProps> = ({
           />
         </div>
 
-        <div className="min-w-0 pr-2">
+        <div className="min-w-0 pr-1 truncate">
           <h4
             className="text-xs sm:text-sm font-semibold text-white truncate hover:underline cursor-pointer"
             title={currentTrack.title}
@@ -105,14 +105,14 @@ export const PlaybackBar: React.FC<PlaybackBarProps> = ({
           </h4>
           <p
             onClick={() => usePlayerStore.getState().navigateToArtist(currentTrack.artist_name)}
-            className="text-[11px] sm:text-xs text-[#B3B3B3] truncate hover:text-[#1DB954] hover:underline cursor-pointer transition-colors"
+            className="text-[10px] sm:text-xs text-[#B3B3B3] truncate hover:text-[#1DB954] hover:underline cursor-pointer transition-colors"
             title={currentTrack.artist_name}
           >
             {currentTrack.artist_name}
           </p>
 
-          {/* Provider & Playback Capability Pill */}
-          <div className="flex items-center gap-1.5 mt-0.5">
+          {/* Provider & Capability Pill (Visible on sm screens & up) */}
+          <div className="hidden sm:flex items-center gap-1.5 mt-0.5">
             {providerAdapter.isFullLength(currentTrack) ? (
               <span className="px-1.5 py-0.2 rounded text-[9px] font-bold uppercase bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
@@ -143,18 +143,18 @@ export const PlaybackBar: React.FC<PlaybackBarProps> = ({
         <button
           onClick={() => toggleLike(currentTrack)}
           aria-label={isLiked ? 'Unlike' : 'Like'}
-          className={`p-1.5 rounded-full transition-transform active:scale-90 flex-shrink-0 ${
+          className={`p-1 sm:p-1.5 rounded-full transition-transform active:scale-90 flex-shrink-0 ${
             isLiked ? 'text-[#1DB954]' : 'text-[#B3B3B3] hover:text-white'
           }`}
         >
-          <Heart className={`w-4 h-4 ${isLiked ? 'fill-[#1DB954]' : ''}`} />
+          <Heart className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${isLiked ? 'fill-[#1DB954]' : ''}`} />
         </button>
       </div>
 
       {/* 2. Center: Playback Controls & Progress Bar */}
-      <div className="flex flex-col items-center max-w-2xl flex-1 px-2 sm:px-4 min-w-0">
+      <div className="flex flex-col items-center max-w-2xl flex-1 px-1 sm:px-4 min-w-0">
         {activeRoom && (
-          <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-[#1DB954]/15 border border-[#1DB954]/30 text-[10px] font-bold text-[#1DB954] mb-1">
+          <div className="hidden sm:flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-[#1DB954]/15 border border-[#1DB954]/30 text-[10px] font-bold text-[#1DB954] mb-1">
             <Radio className="w-2.5 h-2.5 animate-pulse" />
             <span>
               {roomRole === 'host'
@@ -165,13 +165,14 @@ export const PlaybackBar: React.FC<PlaybackBarProps> = ({
             </span>
           </div>
         )}
+
         {/* Top: Control Buttons */}
-        <div className="flex items-center gap-4 mb-1">
-          {/* Shuffle */}
+        <div className="flex items-center gap-2 sm:gap-4 mb-0.5 sm:mb-1">
+          {/* Shuffle (desktop & tablet) */}
           <button
             onClick={toggleShuffle}
             aria-label="Toggle shuffle"
-            className={`p-1.5 transition-colors ${
+            className={`hidden sm:inline-flex p-1.5 transition-colors ${
               isShuffle ? 'text-[#1DB954]' : 'text-[#B3B3B3] hover:text-white'
             }`}
             title="Shuffle"
@@ -183,22 +184,22 @@ export const PlaybackBar: React.FC<PlaybackBarProps> = ({
           <button
             onClick={prevTrack}
             aria-label="Previous track"
-            className="p-1.5 text-[#B3B3B3] hover:text-white transition-colors"
+            className="p-1 sm:p-1.5 text-[#B3B3B3] hover:text-white transition-colors"
             title="Previous"
           >
-            <SkipBack className="w-5 h-5 fill-current" />
+            <SkipBack className="w-4 h-4 sm:w-5 sm:h-5 fill-current" />
           </button>
 
-          {/* Play/Pause Button (Premium Spotify Radiant Green Button) */}
+          {/* Play/Pause Button */}
           <button
             onClick={togglePlay}
             aria-label={isPlaying ? 'Pause' : 'Play'}
-            className="w-10 h-10 rounded-full bg-[#1DB954] hover:bg-[#1ed760] text-black flex items-center justify-center transform hover:scale-108 active:scale-95 transition-all duration-200 shadow-lg shadow-[#1DB954]/40 hover:shadow-[#1DB954]/60 mx-1.5 ring-1 ring-white/20"
+            className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[#1DB954] hover:bg-[#1ed760] text-black flex items-center justify-center transform hover:scale-108 active:scale-95 transition-all duration-200 shadow-lg shadow-[#1DB954]/40 hover:shadow-[#1DB954]/60 mx-1 sm:mx-1.5 ring-1 ring-white/20"
           >
             {isPlaying ? (
-              <Pause className="w-5 h-5 fill-black stroke-black" />
+              <Pause className="w-4 h-4 sm:w-5 sm:h-5 fill-black stroke-black" />
             ) : (
-              <Play className="w-5 h-5 fill-black stroke-black ml-0.5" />
+              <Play className="w-4 h-4 sm:w-5 sm:h-5 fill-black stroke-black ml-0.5" />
             )}
           </button>
 
@@ -206,17 +207,17 @@ export const PlaybackBar: React.FC<PlaybackBarProps> = ({
           <button
             onClick={nextTrack}
             aria-label="Next track"
-            className="p-1.5 text-[#B3B3B3] hover:text-white transition-colors"
+            className="p-1 sm:p-1.5 text-[#B3B3B3] hover:text-white transition-colors"
             title="Next"
           >
-            <SkipForward className="w-5 h-5 fill-current" />
+            <SkipForward className="w-4 h-4 sm:w-5 sm:h-5 fill-current" />
           </button>
 
-          {/* Repeat */}
+          {/* Repeat (desktop & tablet) */}
           <button
             onClick={toggleRepeat}
             aria-label="Toggle repeat"
-            className={`p-1.5 transition-colors ${
+            className={`hidden sm:inline-flex p-1.5 transition-colors ${
               repeatMode !== 'off' ? 'text-[#1DB954]' : 'text-[#B3B3B3] hover:text-white'
             }`}
             title={`Repeat: ${repeatMode}`}
@@ -230,8 +231,8 @@ export const PlaybackBar: React.FC<PlaybackBarProps> = ({
         </div>
 
         {/* Bottom: Progress Bar & Timestamps */}
-        <div className="w-full flex items-center gap-2 text-[11px] text-[#B3B3B3]">
-          <span className="w-8 text-right tabular-nums">{formatTime(currentTime)}</span>
+        <div className="w-full flex items-center gap-1.5 sm:gap-2 text-[10px] sm:text-[11px] text-[#B3B3B3]">
+          <span className="w-7 sm:w-8 text-right tabular-nums">{formatTime(currentTime)}</span>
 
           <div className="flex-1 relative flex items-center group cursor-pointer py-1">
             <input
@@ -250,7 +251,7 @@ export const PlaybackBar: React.FC<PlaybackBarProps> = ({
           </div>
 
           <span
-            className="w-8 tabular-nums"
+            className="w-7 sm:w-8 tabular-nums"
             title={
               !providerAdapter.isFullLength(currentTrack)
                 ? `Preview stream: ${formatTime(duration)} (Full song: ${formatTime(currentTrack.fullTrackDuration || 210)})`
@@ -263,7 +264,7 @@ export const PlaybackBar: React.FC<PlaybackBarProps> = ({
       </div>
 
       {/* 3. Right: Lyrics, Queue, Device, Volume, Fullscreen */}
-      <div className="flex items-center justify-end gap-1.5 sm:gap-3 w-1/4 min-w-[140px] sm:min-w-[180px] shrink-0">
+      <div className="flex items-center justify-end gap-1 sm:gap-2.5 shrink-0">
         {/* DJ Mixer Decks Toggle Button */}
         <button
           onClick={() => setCurrentView('mixer')}
@@ -299,7 +300,7 @@ export const PlaybackBar: React.FC<PlaybackBarProps> = ({
         </button>
 
         {/* Device Output Popover Toggle */}
-        <div className="relative hidden sm:block">
+        <div className="relative hidden lg:block">
           <button
             onClick={() => setDevicePopoverOpen(!devicePopoverOpen)}
             aria-label="Connect to a device"
@@ -323,8 +324,8 @@ export const PlaybackBar: React.FC<PlaybackBarProps> = ({
           )}
         </div>
 
-        {/* Volume Controls */}
-        <div className="flex items-center gap-1.5 sm:gap-2 w-20 sm:w-28 group">
+        {/* Volume Controls (Desktop & Large Tablets: md and up) */}
+        <div className="hidden md:flex items-center gap-1.5 sm:gap-2 w-20 sm:w-28 group">
           <button
             onClick={toggleMute}
             aria-label={isMuted ? 'Unmute' : 'Mute'}

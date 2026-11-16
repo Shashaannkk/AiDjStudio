@@ -28,7 +28,7 @@ export const PlaylistDetailView: React.FC = () => {
 
   useEffect(() => {
     let active = true;
-    if (selectedPlaylist && !isLikedView && !isCustomUserPlaylist) {
+    if (selectedPlaylist && !isLikedView && !isCustomUserPlaylist && !selectedPlaylist.tracks?.length) {
       musicService.getTracksForGenre(selectedPlaylist.name).then((res) => {
         if (active && res && res.length > 0) {
           setPlaylistTracks(res);
@@ -42,7 +42,7 @@ export const PlaylistDetailView: React.FC = () => {
 
   const tracks = isLikedView
     ? likedTracks
-    : isCustomUserPlaylist && selectedPlaylist?.tracks
+    : selectedPlaylist?.tracks && selectedPlaylist.tracks.length > 0
     ? selectedPlaylist.tracks
     : playlistTracks;
 

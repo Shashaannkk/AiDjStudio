@@ -290,44 +290,52 @@ export const RoomChat: React.FC = () => {
 
           {/* Messages Scroll Area */}
           <div className={`flex-1 overflow-y-auto space-y-2.5 pr-1 py-1 ${activeSoundclash || activeHumanBattle ? 'max-h-[140px]' : 'max-h-[220px]'}`}>
-            {roomMessages.map((msg) => (
-              <div key={msg.id} className="flex items-start gap-2.5">
-                <img
-                  src={msg.userAvatar}
-                  alt={msg.userName}
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).src =
-                      'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?q=80&w=200&auto=format&fit=crop';
-                  }}
-                  className="w-7 h-7 rounded-full object-cover shrink-0 mt-0.5 ring-1 ring-white/10"
-                />
-                <div className="flex flex-col min-w-0 flex-1">
-                  <div className="flex items-baseline gap-1.5 flex-wrap">
-                    <span className="text-xs font-bold text-white leading-tight">
-                      {msg.userName}
-                    </span>
-                    {msg.isSystem && (
-                      <span className="text-[9px] font-bold uppercase px-1.5 py-0.2 rounded bg-white/10 text-white/80">
-                        Notice
-                      </span>
-                    )}
-                    {msg.isAi && (
-                      <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.2 rounded bg-[#8C52FF]/20 text-[#8C52FF] border border-[#8C52FF]/30">
-                        AI DJ
-                      </span>
-                    )}
-                    <span className="text-[10px] text-[#B3B3B3] ml-auto">{msg.timestamp}</span>
-                  </div>
-                  <p
-                    className={`text-xs mt-0.5 leading-snug break-words ${
-                      msg.isSystem ? 'text-[#1DB954] font-medium' : 'text-[#E5E7EB]'
-                    }`}
-                  >
-                    {msg.message}
-                  </p>
-                </div>
+            {roomMessages.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-6 text-center text-[#B3B3B3]">
+                <MessageSquare className="w-7 h-7 text-[#B3B3B3]/40 mb-1.5" />
+                <p className="text-xs font-semibold text-white/90">Party Room Chat</p>
+                <p className="text-[11px] text-[#B3B3B3]/70 mt-0.5">Send a message or react with emojis to start the chat!</p>
               </div>
-            ))}
+            ) : (
+              roomMessages.map((msg) => (
+                <div key={msg.id} className="flex items-start gap-2.5">
+                  <img
+                    src={msg.userAvatar}
+                    alt={msg.userName}
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src =
+                        'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?q=80&w=200&auto=format&fit=crop';
+                    }}
+                    className="w-7 h-7 rounded-full object-cover shrink-0 mt-0.5 ring-1 ring-white/10"
+                  />
+                  <div className="flex flex-col min-w-0 flex-1">
+                    <div className="flex items-baseline gap-1.5 flex-wrap">
+                      <span className="text-xs font-bold text-white leading-tight">
+                        {msg.userName}
+                      </span>
+                      {msg.isSystem && (
+                        <span className="text-[9px] font-bold uppercase px-1.5 py-0.2 rounded bg-white/10 text-white/80">
+                          Notice
+                        </span>
+                      )}
+                      {msg.isAi && (
+                        <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.2 rounded bg-[#8C52FF]/20 text-[#8C52FF] border border-[#8C52FF]/30">
+                          AI DJ
+                        </span>
+                      )}
+                      <span className="text-[10px] text-[#B3B3B3] ml-auto">{msg.timestamp}</span>
+                    </div>
+                    <p
+                      className={`text-xs mt-0.5 leading-snug break-words ${
+                        msg.isSystem ? 'text-[#1DB954] font-medium' : 'text-[#E5E7EB]'
+                      }`}
+                    >
+                      {msg.message}
+                    </p>
+                  </div>
+                </div>
+              ))
+            )}
             <div ref={chatEndRef} />
           </div>
 

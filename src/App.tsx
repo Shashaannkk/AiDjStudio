@@ -4,6 +4,7 @@ import { TopNav } from './components/layout/TopNav';
 import { MainContent } from './components/layout/MainContent';
 import { RightPanel } from './components/layout/RightPanel';
 import { PlaybackBar } from './components/layout/PlaybackBar';
+import { MobileBottomNav } from './components/layout/MobileBottomNav';
 import { LyricsModal } from './components/common/LyricsModal';
 import { FullscreenVisualizer } from './components/common/FullscreenVisualizer';
 import { AuthModal } from './components/auth/AuthModal';
@@ -59,8 +60,8 @@ export const App: React.FC = () => {
   return (
     <div className="flex flex-col h-screen w-screen overflow-hidden bg-black text-white font-sans">
       {/* Upper Area: Sidebar + Main Content Feed + Right Panel */}
-      <div className="flex flex-1 overflow-hidden pb-20">
-        {/* Left Sidebar */}
+      <div className="flex flex-1 overflow-hidden pb-32 sm:pb-28 md:pb-20">
+        {/* Left Sidebar (Desktop fixed + Mobile slide-over drawer) */}
         <Sidebar />
 
         {/* Center Content Column (TopNav + MainContent) */}
@@ -69,15 +70,18 @@ export const App: React.FC = () => {
           <MainContent />
         </div>
 
-        {/* Right-Side Panel (AI DJ + Now Playing + Queue + Chat) */}
+        {/* Right-Side Panel (Desktop inline + Mobile/Tablet slide-over drawer) */}
         <RightPanel />
       </div>
 
-      {/* Persistent Bottom Playback Bar */}
+      {/* Persistent Playback Bar */}
       <PlaybackBar
         onToggleFullscreen={() => setIsFullscreen(!isFullscreen)}
         isFullscreen={isFullscreen}
       />
+
+      {/* Mobile-Only Bottom Navigation Bar (md:hidden) */}
+      <MobileBottomNav />
 
       {/* Lyrics Drawer / Modal */}
       <LyricsModal />

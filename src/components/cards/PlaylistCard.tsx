@@ -14,8 +14,10 @@ export const PlaylistCard: React.FC<PlaylistCardProps> = ({ playlist, className 
 
   const handlePlayClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    // Start playing the first track of this mix
-    if (FIXTURE_TRACKS.length > 0) {
+    // Start playing the first track of this specific playlist mix
+    if (playlist.tracks && playlist.tracks.length > 0) {
+      playTrack(playlist.tracks[0]);
+    } else if (FIXTURE_TRACKS.length > 0) {
       playTrack(FIXTURE_TRACKS[0]);
     }
   };
