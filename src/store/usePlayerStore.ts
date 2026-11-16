@@ -1312,9 +1312,13 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
       const userId = state.user?.id || 'guest';
 
       try {
+        const token = userService.getAuthToken();
         const res = await fetch('/api/queue/vote', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
           body: JSON.stringify({
             roomId,
             queueItemId: trackId,

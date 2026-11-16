@@ -199,6 +199,29 @@ CREATE TRIGGER trigger_profiles_updated_at
   BEFORE UPDATE ON public.profiles
   FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
 
+-- =========================================================================
+-- SEC-DB-02: ROLE ESCALATION PREVENTION TRIGGER
+-- Prevents non-admin callers from modifying the role column on public.profiles
+-- =========================================================================
+CREATE OR REPLACE FUNCTION public.prevent_profile_role_escalation()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.role IS DISTINCT FROM OLD.role THEN
+    IF auth.role() <> 'service_role' AND NOT EXISTS (
+      SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role = 'admin'
+    ) THEN
+      RAISE EXCEPTION 'Unauthorized: Users cannot modify their own role from % to %', OLD.role, NEW.role;
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_prevent_role_escalation ON public.profiles;
+CREATE TRIGGER trigger_prevent_role_escalation
+  BEFORE UPDATE ON public.profiles
+  FOR EACH ROW EXECUTE FUNCTION public.prevent_profile_role_escalation();
+
 DROP TRIGGER IF EXISTS trigger_playlists_updated_at ON public.playlists;
 CREATE TRIGGER trigger_playlists_updated_at
   BEFORE UPDATE ON public.playlists

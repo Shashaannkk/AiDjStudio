@@ -154,9 +154,15 @@ class ChatService {
 
     // Broadcast across different browsers/incognito via dev server endpoint
     if (typeof fetch !== 'undefined') {
+      const token = typeof window !== 'undefined'
+        ? (sessionStorage.getItem('aidj_auth_token') || localStorage.getItem('aidj_auth_token'))
+        : null;
       fetch('/api/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({ roomId, message: newMsg }),
       }).catch(() => {
         // Dev server api fallback handled by BroadcastChannel

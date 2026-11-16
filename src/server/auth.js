@@ -433,6 +433,14 @@ export function refreshSession(refreshToken) {
     throw new Error('User account not found');
   }
 
+  // Refresh Token Rotation (RTR - RFC 6749 & OWASP ASVS 5.0)
+  // Invalidate consumed refresh token immediately upon single use
+  delete refreshTokensCache[refreshToken];
+
+  // Issue new rotated refresh token
+  const newRefreshToken = generateRefreshToken(user.id);
+  saveRefreshTokens();
+
   const tokenPayload = {
     sub: user.id,
     id: user.id,
@@ -443,7 +451,12 @@ export function refreshSession(refreshToken) {
   };
 
   const newAccessToken = signJwt(tokenPayload, 3600);
-  return { accessToken: newAccessToken, expiresIn: 3600 };
+  return {
+    accessToken: newAccessToken,
+    refreshToken: newRefreshToken,
+    expiresIn: 3600,
+    user: sanitizeUser(user),
+  };
 }
 
 export function getUserById(id) {

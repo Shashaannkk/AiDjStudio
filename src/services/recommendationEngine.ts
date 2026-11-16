@@ -838,45 +838,35 @@ export class RecommendationEngine {
 
   /**
    * Natural Language AI DJ Voice Commentary Generator
-   * Uses Gemini API when VITE_GEMINI_API_KEY is available;
-   * otherwise uses the built-in deterministic DJ radio host speech engine.
+   * Proxies through secure backend assistant endpoint (/api/assistant/commentary)
+   * without exposing API keys on the client; falls back gracefully to the
+   * built-in deterministic DJ radio host speech engine.
    */
   public async generateAiCommentary(
     currentTrack: Track | null | undefined,
     candidate: RecommendationCandidate
   ): Promise<string> {
-    const apiKey = typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_GEMINI_API_KEY;
-
-    if (apiKey && typeof fetch !== 'undefined') {
+    if (typeof fetch !== 'undefined') {
       try {
-        const prompt = `You are an elite, energetic world-class club and radio AI DJ named "AI DJ Studio".
-Track currently playing: "${currentTrack?.title || 'Current Vibe'}" by ${currentTrack?.artist_name || 'Resident DJ'} (${currentTrack?.bpm || 120} BPM, Key: ${currentTrack?.key || 'C Maj'}).
-Next track you are dropping: "${candidate.track.title}" by ${candidate.track.artist_name} (${candidate.track.bpm} BPM, Key: ${candidate.track.key}, ${candidate.score.overall}% compatibility match).
-Mix technique: ${candidate.explanation.suggestedMixTechnique}.
-Mood: ${candidate.matchedMood || 'Party'}.
-
-Write a single, punchy, charismatic 1-to-2 sentence DJ shoutout/intro introducing the upcoming track to the crowd. Keep it modern, engaging, and mention the musical vibe without sounding like a robot.`;
-
-        const res = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              contents: [{ parts: [{ text: prompt }] }],
-            }),
-          }
-        );
+        const res = await fetch('/api/assistant/commentary', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            currentTrack,
+            nextTrack: candidate.track,
+            technique: candidate.explanation.suggestedMixTechnique,
+            mood: candidate.matchedMood || 'Party',
+          }),
+        });
 
         if (res.ok) {
           const data = await res.json();
-          const generated = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-          if (generated && typeof generated === 'string' && generated.trim().length > 10) {
-            return generated.trim().replace(/^["']|["']$/g, '');
+          if (data.success && data.commentary) {
+            return data.commentary;
           }
         }
       } catch (e) {
-        console.warn('Notice from Gemini API commentary, using studio host speech generator:', e);
+        console.warn('Notice from AI assistant commentary proxy, using deterministic host speech engine:', e);
       }
     }
 

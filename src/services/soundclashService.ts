@@ -60,10 +60,18 @@ class SoundclashService {
   }
 
   private async fetch(url: string, init?: RequestInit): Promise<Response> {
+    const token = typeof window !== 'undefined'
+      ? (sessionStorage.getItem('aidj_auth_token') || localStorage.getItem('aidj_auth_token'))
+      : null;
+    const headers = {
+      ...(init?.headers || {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    };
+    const finalInit = { ...init, headers };
     if (this.customFetch) {
-      return this.customFetch(url, init);
+      return this.customFetch(url, finalInit);
     }
-    return fetch(url, init);
+    return fetch(url, finalInit);
   }
 
   /**

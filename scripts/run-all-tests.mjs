@@ -18,6 +18,7 @@ const suites = [
   { name: 'Phase 11: PRD Benchmarks (Precision@5 & Natural Language AI-01)', cmd: 'node scripts/run-ts.mjs scripts/test-benchmarks.ts' },
   { name: 'Phase 12: Master 15-Domain E2E Integration Suite', cmd: 'node scripts/run-ts.mjs scripts/test-master-e2e-integration.mjs' },
   { name: 'Phase 13: GitHub Security & Credential Hardening', cmd: 'node scripts/test-phase13-github-security-audit.mjs' },
+  { name: 'Phase 14: Full Application Security & Penetration Hardening', cmd: 'node scripts/test-security-remediations.mjs' },
 ];
 
 console.log('========================================================================');
@@ -39,7 +40,8 @@ for (const suite of suites) {
   } catch (err) {
     console.log('FAILED');
     failedSuites++;
-    results.push({ name: suite.name, status: 'FAIL', error: err.stdout || err.stderr || err.message });
+    const errOutput = [err.stdout, err.stderr, err.message].filter(Boolean).join('\n');
+    results.push({ name: suite.name, status: 'FAIL', error: errOutput });
   }
 }
 

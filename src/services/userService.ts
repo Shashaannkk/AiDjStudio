@@ -121,7 +121,7 @@ class UserService {
       if (res.ok) {
         const data = await res.json();
         if (data.accessToken) {
-          this.saveTokens(data.accessToken);
+          this.saveTokens(data.accessToken, data.refreshToken || refreshToken);
           return data.accessToken;
         }
       }

@@ -95,10 +95,25 @@ const MIME_TYPES = {
 const sseClients = new Set();
 const messagesByRoom = new Map();
 
-// Sliding Window Rate Limiter
+// Sliding Window Rate Limiter (General API)
 const rateLimitMap = new Map();
 const RATE_LIMIT_WINDOW_MS = 60 * 1000; // 1 minute
 const MAX_REQUESTS_PER_WINDOW = 120; // 120 requests/minute per IP
+
+// Dedicated Strict Auth Rate Limiter (SEC-AUTH-02: Brute-force protection for login/register)
+const authRateLimitMap = new Map();
+const AUTH_RATE_LIMIT_WINDOW_MS = 60 * 1000; // 1 minute
+const MAX_AUTH_ATTEMPTS_PER_WINDOW = 10; // Max 10 attempts per minute per IP
+
+// OWASP ASVS 5.0 Compliant HTTP Security Headers (SEC-HDR-01)
+const SECURITY_HEADERS = {
+  'X-Content-Type-Options': 'nosniff',
+  'X-Frame-Options': 'DENY',
+  'X-XSS-Protection': '0',
+  'Referrer-Policy': 'strict-origin-when-cross-origin',
+  'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https:; connect-src 'self' https: wss:; img-src 'self' data: https: blob:; media-src 'self' data: https: blob:; style-src 'self' 'unsafe-inline' https:; font-src 'self' https: data:;",
+  'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
+};
 
 const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(',').map((o) => o.trim())
@@ -111,12 +126,21 @@ function resolveCorsOrigin(req) {
   return ALLOWED_ORIGINS[0];
 }
 
+function getClientIp(req) {
+  const xForwardedFor = req?.headers?.['x-forwarded-for'];
+  if (xForwardedFor && typeof xForwardedFor === 'string') {
+    return xForwardedFor.split(',')[0].trim();
+  }
+  return req?.socket?.remoteAddress || '127.0.0.1';
+}
+
 function sendJson(res, statusCode, data, req = null) {
   res.writeHead(statusCode, {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': resolveCorsOrigin(req),
     'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Admin-Key',
     'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
+    ...SECURITY_HEADERS,
   });
   res.end(JSON.stringify(data));
 }
@@ -179,14 +203,29 @@ export function handleApiRequest(req, res) {
     return true;
   }
 
-  // 1. Global Rate Limiter
+  // 1. Strict Auth Endpoint Rate Limiter (Brute-Force & Credential Stuffing Defense)
+  if (urlStr === '/api/auth/login' || urlStr === '/api/auth/register') {
+    const clientIp = getClientIp(req);
+    const now = Date.now();
+    const attempts = (authRateLimitMap.get(clientIp) || []).filter((t) => now - t < AUTH_RATE_LIMIT_WINDOW_MS);
+
+    if (attempts.length >= MAX_AUTH_ATTEMPTS_PER_WINDOW) {
+      sendJson(res, 429, { error: 'Too many authentication attempts. Please try again after 1 minute.', status: 429 }, req);
+      return true;
+    }
+
+    attempts.push(now);
+    authRateLimitMap.set(clientIp, attempts);
+  }
+
+  // 1b. Global Rate Limiter
   if (urlStr.startsWith('/api/')) {
-    const clientIp = String(req.headers?.['x-forwarded-for'] || req.socket?.remoteAddress || '127.0.0.1');
+    const clientIp = getClientIp(req);
     const now = Date.now();
     const timestamps = (rateLimitMap.get(clientIp) || []).filter((t) => now - t < RATE_LIMIT_WINDOW_MS);
 
     if (timestamps.length >= MAX_REQUESTS_PER_WINDOW) {
-      sendJson(res, 429, { error: 'Too many requests. Please slow down.', status: 429 });
+      sendJson(res, 429, { error: 'Too many requests. Please slow down.', status: 429 }, req);
       return true;
     }
 
@@ -294,31 +333,50 @@ export function handleApiRequest(req, res) {
   }
 
   if (urlStr.startsWith('/api/chat') && req.method === 'POST') {
+    const auth = authenticateRequest(req);
+    if (!auth.authenticated) {
+      sendJson(res, 401, {
+        error: `Unauthorized: Valid authentication token required to post chat messages (${auth.error})`,
+        status: 401,
+      }, req);
+      return true;
+    }
+
     parseJsonBody(req)
       .then((data) => {
         if (!data || !data.message || typeof data.message !== 'object') {
-          sendJson(res, 400, { error: 'Missing message payload' });
+          sendJson(res, 400, { error: 'Missing message payload' }, req);
           return;
         }
 
         const rawText = String(data.message.message || '');
         if (!rawText.trim() || rawText.length > 2000) {
-          sendJson(res, 400, { error: 'Message must be between 1 and 2000 characters' });
+          sendJson(res, 400, { error: 'Message must be between 1 and 2000 characters' }, req);
           return;
         }
 
         // XSS sanitization
-        data.message.message = rawText.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '[sanitized script]');
+        const sanitizedText = rawText.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '[sanitized script]');
+
+        // Enforce verified user identity from authenticated JWT (SEC-API-01 / Anti-Spoofing)
+        const message = {
+          ...data.message,
+          message: sanitizedText,
+          userId: auth.user.id,
+          userName: auth.user.name,
+          userAvatar: auth.user.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?q=80&w=200&auto=format&fit=crop',
+          role: auth.user.role,
+        };
 
         const roomId = data.roomId || 'room_late_night_lounge';
         const current = messagesByRoom.get(roomId) || [];
-        const updated = [...current, data.message].slice(-100);
+        const updated = [...current, message].slice(-100);
         messagesByRoom.set(roomId, updated);
 
         const ssePayload = `data: ${JSON.stringify({
           type: 'NEW_CHAT_MESSAGE',
           roomId,
-          message: data.message,
+          message,
         })}\n\n`;
 
         for (const client of sseClients) {
@@ -329,10 +387,10 @@ export function handleApiRequest(req, res) {
           }
         }
 
-        sendJson(res, 200, { success: true, message: data.message });
+        sendJson(res, 200, { success: true, message }, req);
       })
       .catch((err) => {
-        sendJson(res, 400, { error: err.message });
+        sendJson(res, 400, { error: err.message }, req);
       });
     return true;
   }
@@ -475,15 +533,23 @@ export function handleApiRequest(req, res) {
   // -------------------------------------------------------------------------
 
   if (urlStr.startsWith('/api/queue/vote') && req.method === 'POST') {
+    const auth = authenticateRequest(req);
+    if (!auth.authenticated) {
+      sendJson(res, 401, { error: `Unauthorized: Authentication required to vote (${auth.error})`, status: 401 }, req);
+      return true;
+    }
+
     parseJsonBody(req)
       .then((data) => {
-        const { roomId, queueItemId, userId } = data;
+        const { roomId, queueItemId } = data;
         const vote = data.vote !== undefined ? data.vote : data.voteValue;
+        // SEC-API-02: Enforce authenticated user's ID to prevent vote forging / BOLA
+        const userId = auth.user.id;
         const result = castQueueVote(roomId, queueItemId, userId, vote);
-        sendJson(res, 200, { success: true, votes: result });
+        sendJson(res, 200, { success: true, votes: result }, req);
       })
       .catch((err) => {
-        sendJson(res, 400, { error: err.message });
+        sendJson(res, 400, { error: err.message }, req);
       });
     return true;
   }
@@ -491,14 +557,14 @@ export function handleApiRequest(req, res) {
   if (urlStr.startsWith('/api/queue/votes') && req.method === 'GET') {
     const url = new URL(urlStr, `http://${req.headers.host || 'localhost'}`);
     const roomId = url.searchParams.get('roomId') || 'main_room';
-    sendJson(res, 200, { roomId, votes: getQueueVotes(roomId) });
+    sendJson(res, 200, { roomId, votes: getQueueVotes(roomId) }, req);
     return true;
   }
 
   if (urlStr.startsWith('/api/queue/events') && req.method === 'GET') {
     const url = new URL(urlStr, `http://${req.headers.host || 'localhost'}`);
     const roomId = url.searchParams.get('roomId') || 'main_room';
-    sendJson(res, 200, { roomId, events: getQueueEvents(roomId) });
+    sendJson(res, 200, { roomId, events: getQueueEvents(roomId) }, req);
     return true;
   }
 
@@ -506,10 +572,10 @@ export function handleApiRequest(req, res) {
     parseJsonBody(req)
       .then((data) => {
         const logged = logQueueEvent(data);
-        sendJson(res, 201, { success: true, event: logged });
+        sendJson(res, 201, { success: true, event: logged }, req);
       })
       .catch((err) => {
-        sendJson(res, 400, { error: err.message });
+        sendJson(res, 400, { error: err.message }, req);
       });
     return true;
   }
@@ -519,52 +585,91 @@ export function handleApiRequest(req, res) {
   // -------------------------------------------------------------------------
 
   if (urlStr.startsWith('/api/soundclash/create') && req.method === 'POST') {
+    const auth = authenticateRequest(req);
+    if (!auth.authenticated) {
+      sendJson(res, 401, { error: `Unauthorized: Authentication required to create battles (${auth.error})`, status: 401 }, req);
+      return true;
+    }
+
     parseJsonBody(req)
       .then((data) => {
-        const battle = createHumanSoundclash(data);
-        sendJson(res, 201, { success: true, battle });
+        const battleData = {
+          ...data,
+          dj1: {
+            id: auth.user.id,
+            name: auth.user.name,
+            avatar: auth.user.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?q=80&w=200&auto=format&fit=crop',
+          },
+        };
+        const battle = createHumanSoundclash(battleData);
+        sendJson(res, 201, { success: true, battle }, req);
       })
       .catch((err) => {
-        sendJson(res, 400, { error: err.message });
+        sendJson(res, 400, { error: err.message }, req);
       });
     return true;
   }
 
   if (urlStr.startsWith('/api/soundclash/challenge') && req.method === 'POST') {
+    const auth = authenticateRequest(req);
+    if (!auth.authenticated) {
+      sendJson(res, 401, { error: `Unauthorized: Authentication required to challenge (${auth.error})`, status: 401 }, req);
+      return true;
+    }
+
     parseJsonBody(req)
       .then((data) => {
-        const { roomId, challenger } = data;
+        const { roomId } = data;
+        const challenger = {
+          id: auth.user.id,
+          name: auth.user.name,
+          avatar: auth.user.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?q=80&w=200&auto=format&fit=crop',
+        };
         const battle = registerChallenger(roomId, challenger);
-        sendJson(res, 200, { success: true, battle });
+        sendJson(res, 200, { success: true, battle }, req);
       })
       .catch((err) => {
-        sendJson(res, 400, { error: err.message });
+        sendJson(res, 400, { error: err.message }, req);
       });
     return true;
   }
 
   if (urlStr.startsWith('/api/soundclash/submit') && req.method === 'POST') {
+    const auth = authenticateRequest(req);
+    if (!auth.authenticated) {
+      sendJson(res, 401, { error: `Unauthorized: Authentication required to submit tracks (${auth.error})`, status: 401 }, req);
+      return true;
+    }
+
     parseJsonBody(req)
       .then((data) => {
-        const { roomId, userId, track } = data;
+        const { roomId, track } = data;
+        const userId = auth.user.id;
         const battle = submitBattleTrack(roomId, userId, track);
-        sendJson(res, 200, { success: true, battle });
+        sendJson(res, 200, { success: true, battle }, req);
       })
       .catch((err) => {
-        sendJson(res, 400, { error: err.message });
+        sendJson(res, 400, { error: err.message }, req);
       });
     return true;
   }
 
   if (urlStr.startsWith('/api/soundclash/vote') && req.method === 'POST') {
+    const auth = authenticateRequest(req);
+    if (!auth.authenticated) {
+      sendJson(res, 401, { error: `Unauthorized: Authentication required to vote (${auth.error})`, status: 401 }, req);
+      return true;
+    }
+
     parseJsonBody(req)
       .then((data) => {
-        const { roomId, userId, choice } = data;
+        const { roomId, choice } = data;
+        const userId = auth.user.id;
         const battle = castBattleVote(roomId, userId, choice);
-        sendJson(res, 200, { success: true, battle });
+        sendJson(res, 200, { success: true, battle }, req);
       })
       .catch((err) => {
-        sendJson(res, 400, { error: err.message });
+        sendJson(res, 400, { error: err.message }, req);
       });
     return true;
   }
@@ -724,7 +829,7 @@ export function handleApiRequest(req, res) {
       .then(async (data) => {
         const messages = data.messages || [];
         const lastUserMessage = messages.filter((m) => m.role === 'user').slice(-1)[0]?.content || '';
-        const geminiApiKey = process.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY || '';
+        const geminiApiKey = process.env.GEMINI_API_KEY || '';
 
         if (geminiApiKey && geminiApiKey.startsWith('AIzaSy')) {
           try {
@@ -744,16 +849,62 @@ export function handleApiRequest(req, res) {
                 sendJson(res, 200, {
                   success: true,
                   message: { id: `gemini-${Date.now()}`, role: 'assistant', content: text },
-                });
+                }, req);
                 return;
               }
             }
           } catch {}
         }
-        sendJson(res, 200, { success: true, useLocalRag: true });
+        sendJson(res, 200, { success: true, useLocalRag: true }, req);
       })
       .catch(() => {
-        sendJson(res, 400, { error: 'Invalid JSON request' });
+        sendJson(res, 400, { error: 'Invalid JSON request' }, req);
+      });
+    return true;
+  }
+
+  // SEC-SEC-01: Server-side AI DJ Voice Commentary Proxy (protects GEMINI_API_KEY from browser exposure)
+  if (urlStr.startsWith('/api/assistant/commentary') && req.method === 'POST') {
+    parseJsonBody(req)
+      .then(async (data) => {
+        const { currentTrack, nextTrack, technique, mood } = data;
+        const geminiApiKey = process.env.GEMINI_API_KEY || '';
+
+        if (geminiApiKey && geminiApiKey.startsWith('AIzaSy')) {
+          try {
+            const prompt = `You are an elite, energetic world-class club and radio AI DJ named "AI DJ Studio".
+Track currently playing: "${currentTrack?.title || 'Current Vibe'}" by ${currentTrack?.artist_name || 'Resident DJ'} (${currentTrack?.bpm || 120} BPM, Key: ${currentTrack?.key || 'C Maj'}).
+Next track you are dropping: "${nextTrack?.title || 'Next Track'}" by ${nextTrack?.artist_name || 'Featured Artist'} (${nextTrack?.bpm || 128} BPM, Key: ${nextTrack?.key || 'A Min'}).
+Mix technique: ${technique || 'Smooth transition'}.
+Mood: ${mood || 'Party'}.
+
+Write a single, punchy, charismatic 1-to-2 sentence DJ shoutout/intro introducing the upcoming track to the crowd. Keep it modern, engaging, and mention the musical vibe without sounding like a robot.`;
+
+            const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}`;
+            const aiRes = await fetch(geminiUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                contents: [{ parts: [{ text: prompt }] }],
+              }),
+            });
+            if (aiRes.ok) {
+              const aiData = await aiRes.json();
+              const text = aiData?.candidates?.[0]?.content?.parts?.[0]?.text;
+              if (text && typeof text === 'string' && text.trim().length > 10) {
+                sendJson(res, 200, {
+                  success: true,
+                  commentary: text.trim().replace(/^["']|["']$/g, ''),
+                }, req);
+                return;
+              }
+            }
+          } catch {}
+        }
+        sendJson(res, 200, { success: false, fallback: true }, req);
+      })
+      .catch(() => {
+        sendJson(res, 400, { error: 'Invalid commentary request' }, req);
       });
     return true;
   }
@@ -783,7 +934,10 @@ if (isMain) {
 
       fs.readFile(filePath, (readErr, content) => {
         if (readErr) {
-          res.writeHead(500, { 'Content-Type': 'text/plain' });
+          res.writeHead(500, {
+            'Content-Type': 'text/plain',
+            ...SECURITY_HEADERS,
+          });
           res.end('Internal Server Error: dist/index.html not found. Run npm run build first.');
           return;
         }
@@ -794,6 +948,7 @@ if (isMain) {
         res.writeHead(200, {
           'Content-Type': contentType,
           'Cache-Control': ext === '.html' ? 'no-cache' : 'public, max-age=31536000, immutable',
+          ...SECURITY_HEADERS,
         });
         res.end(content);
       });
