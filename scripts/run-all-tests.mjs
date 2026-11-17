@@ -20,6 +20,7 @@ const suites = [
   { name: 'Phase 13: GitHub Security & Credential Hardening', cmd: 'node scripts/test-phase13-github-security-audit.mjs' },
   { name: 'Phase 14: Full Application Security & Penetration Hardening', cmd: 'node scripts/test-security-remediations.mjs' },
   { name: 'Phase 15: Real Multi-User Functionality & Demo Removal Integration', cmd: 'node scripts/test-real-functionality-e2e.mjs' },
+  { name: 'Phase 16: Render Production Startup & Persistence Verification', cmd: 'node scripts/test-render-startup.mjs' },
 ];
 
 console.log('========================================================================');

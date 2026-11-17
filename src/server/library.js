@@ -6,6 +6,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { atomicWriteJsonSync } from './db.js';
+import { postgresAdapter } from './postgresAdapter.js';
 
 const PLAYLISTS_FILE = path.resolve('data', 'playlists.json');
 const LIKES_FILE = path.resolve('data', 'liked_tracks.json');
@@ -114,6 +115,10 @@ export function createPlaylist(userId, data) {
   playlistsCache.unshift(newPlaylist);
   savePlaylists();
 
+  if (postgresAdapter.getStatus().configured) {
+    postgresAdapter.createPlaylist(cleanId, newPlaylist).catch(() => {});
+  }
+
   return newPlaylist;
 }
 
@@ -138,6 +143,10 @@ export function addTrackToPlaylist(userId, playlistId, track) {
     pl.updatedAt = Date.now();
     playlistsCache[index] = pl;
     savePlaylists();
+
+    if (postgresAdapter.getStatus().configured) {
+      postgresAdapter.addTrackToPlaylist(playlistId, track).catch(() => {});
+    }
   }
 
   return pl;
@@ -157,6 +166,10 @@ export function removeTrackFromPlaylist(userId, playlistId, trackId) {
     pl.updatedAt = Date.now();
     playlistsCache[index] = pl;
     savePlaylists();
+
+    if (postgresAdapter.getStatus().configured) {
+      postgresAdapter.removeTrackFromPlaylist(playlistId, trackId).catch(() => {});
+    }
   }
 
   return pl;
@@ -172,6 +185,11 @@ export function deletePlaylist(userId, playlistId) {
   }
 
   savePlaylists();
+
+  if (postgresAdapter.getStatus().configured) {
+    postgresAdapter.deletePlaylist(playlistId).catch(() => {});
+  }
+
   return { success: true, deletedId: playlistId };
 }
 
@@ -223,6 +241,10 @@ export function toggleLikeTrack(userId, trackId, forceLiked = null) {
   likesCache[cleanId] = newLikes;
   saveLikes();
 
+  if (postgresAdapter.getStatus().configured) {
+    postgresAdapter.toggleLikeTrack(cleanId, { id: cleanTrackId }).catch(() => {});
+  }
+
   return { liked: isNowLiked, isLiked: isNowLiked, likedTracks: newLikes, likedTrackIds: newLikes };
 }
 
@@ -250,6 +272,10 @@ export function recordListeningHistory(userId, track) {
 
   historyCache[cleanId] = updated;
   saveHistory();
+
+  if (postgresAdapter.getStatus().configured) {
+    postgresAdapter.recordListeningHistory(cleanId, track).catch(() => {});
+  }
 
   return updated;
 }

@@ -43,15 +43,22 @@ const INSECURE_PLACEHOLDER_SECRETS = [
   'your-secure-jwt-signing-secret-minimum-32-characters',
   'aidj-studio-dev-secret-key-change-in-production-2026',
   'change-in-production',
-  'your-secure-random-admin-api-key',
+  'change-me',
+  'changeme',
+  'placeholder',
+  'your_secure_admin_password',
   'your-secure-initial-admin-password',
+  'your-secure-random-admin-api-key',
 ];
 
 export function isKnownPlaceholder(val) {
   if (!val) return true;
   const s = String(val).trim().toLowerCase();
-  return INSECURE_PLACEHOLDER_SECRETS.some(
-    (p) => s === p.toLowerCase() || s.includes('your-secure-jwt') || s.includes('change-in-production')
+  return (
+    INSECURE_PLACEHOLDER_SECRETS.some((p) => s === p.toLowerCase() || s.includes(p.toLowerCase())) ||
+    s.includes('your-secure') ||
+    s.includes('change-me') ||
+    s.includes('placeholder')
   );
 }
 
@@ -205,29 +212,14 @@ export function sanitizeUser(u) {
 function loadUsers() {
   try {
     if (fs.existsSync(USERS_FILE)) {
-      usersCache = JSON.parse(fs.readFileSync(USERS_FILE, 'utf8'));
+      const raw = fs.readFileSync(USERS_FILE, 'utf8');
+      usersCache = raw ? JSON.parse(raw) : [];
+      if (!Array.isArray(usersCache)) usersCache = [];
+    } else {
+      usersCache = [];
     }
   } catch {
     usersCache = [];
-  }
-
-  // Initial Operator Admin Provisioning (SEC-03)
-  // Only provisions an admin if explicitly configured with secure non-template credentials
-  if (process.env.INITIAL_ADMIN_EMAIL && process.env.INITIAL_ADMIN_PASSWORD) {
-    const rawPass = process.env.INITIAL_ADMIN_PASSWORD.trim();
-    if (isKnownPlaceholder(rawPass) || rawPass.length < 8) {
-      console.warn('[SECURITY WARNING] INITIAL_ADMIN_PASSWORD uses an insecure template placeholder or is less than 8 characters. Auto-provisioning skipped.');
-    } else {
-      const cleanAdminEmail = process.env.INITIAL_ADMIN_EMAIL.trim().toLowerCase();
-      const hasAdmin = usersCache.some((u) => u.email.toLowerCase() === cleanAdminEmail);
-      if (!hasAdmin) {
-        provisionAdminUser({
-          email: cleanAdminEmail,
-          password: rawPass,
-          name: process.env.INITIAL_ADMIN_NAME || 'Platform Administrator',
-        });
-      }
-    }
   }
 }
 
@@ -347,12 +339,17 @@ export function provisionAdminUser({ email, password, name = 'Platform Administr
     throw new Error('Admin password must be at least 8 characters long');
   }
 
+  const rawPass = password.trim();
+  if (isKnownPlaceholder(rawPass)) {
+    throw new Error('Admin password cannot use an insecure template placeholder');
+  }
+
   loadUsers();
   const cleanEmail = email.trim().toLowerCase();
   let existingIndex = usersCache.findIndex((u) => u.email.toLowerCase() === cleanEmail);
 
   const salt = generateSalt();
-  const passwordHash = hashPassword(password, salt);
+  const passwordHash = hashPassword(rawPass, salt);
 
   if (existingIndex >= 0) {
     usersCache[existingIndex].passwordHash = passwordHash;

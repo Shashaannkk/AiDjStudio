@@ -1,6 +1,19 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
+
+export function toValidUuid(id) {
+  if (!id) return crypto.randomUUID();
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (uuidRegex.test(id)) return id;
+  try {
+    const hash = crypto.createHash('md5').update(String(id)).digest('hex');
+    return `${hash.slice(0, 8)}-${hash.slice(8, 12)}-4${hash.slice(13, 16)}-a${hash.slice(17, 20)}-${hash.slice(20, 32)}`;
+  } catch {
+    return crypto.randomUUID();
+  }
+}
 
 /**
  * AI DJ Studio — PostgreSQL & Supabase Production Persistence Adapter
@@ -538,7 +551,516 @@ export class PostgresAdapter {
   }
 
   // =========================================================================
-  // 6. SAFE DATA MIGRATION INTO POSTGRESQL
+  // 6. COLLABORATIVE ROOMS & REAL-TIME PRESENCE
+  // =========================================================================
+
+  async listRooms() {
+    if (!this.client) return null;
+    const { data, error } = await this.client
+      .from('rooms')
+      .select('*, room_members(user_id, role)')
+      .eq('is_live', true)
+      .order('created_at', { ascending: false });
+
+    if (error || !data) return null;
+
+    return data.map((r) => {
+      const participants = (r.room_members || []).map((m) => ({
+        id: m.user_id,
+        role: m.role,
+      }));
+      return {
+        id: r.id,
+        code: r.code,
+        name: r.name,
+        genre: r.genre,
+        cover: r.cover_url,
+        isLive: r.is_live,
+        hostId: r.host_id,
+        listenerCount: participants.length || 1,
+        participants,
+        currentTrack: r.current_track_id ? { id: r.current_track_id } : null,
+        currentPosition: r.current_position_sec || 0,
+        isPlaying: Boolean(r.is_playing),
+        createdAt: new Date(r.created_at).getTime(),
+      };
+    });
+  }
+
+  async getRoom(idOrCode) {
+    if (!this.client) return null;
+    const clean = String(idOrCode || '').trim();
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(clean);
+
+    let query = this.client.from('rooms').select('*, room_members(user_id, role)');
+    if (isUuid) {
+      query = query.eq('id', clean);
+    } else {
+      query = query.or(`code.eq.${clean.toUpperCase()},id.eq.${toValidUuid(clean)}`);
+    }
+
+    const { data, error } = await query.single();
+    if (error || !data) return null;
+
+    const participants = (data.room_members || []).map((m) => ({
+      id: m.user_id,
+      role: m.role,
+    }));
+
+    return {
+      id: data.id,
+      code: data.code,
+      name: data.name,
+      genre: data.genre,
+      cover: data.cover_url,
+      isLive: data.is_live,
+      hostId: data.host_id,
+      listenerCount: participants.length || 1,
+      participants,
+      currentTrack: data.current_track_id ? { id: data.current_track_id } : null,
+      currentPosition: data.current_position_sec || 0,
+      isPlaying: Boolean(data.is_playing),
+      createdAt: new Date(data.created_at).getTime(),
+    };
+  }
+
+  async createRoom(room, hostUser = null) {
+    if (!this.client) return null;
+    const roomId = toValidUuid(room.id);
+    const hostId = toValidUuid(hostUser?.id || room.hostId || '00000000-0000-0000-0000-000000000001');
+
+    const { data, error } = await this.client
+      .from('rooms')
+      .insert({
+        id: roomId,
+        code: (room.code || ('DJ' + Math.random().toString(36).substring(2, 6))).toUpperCase(),
+        host_id: hostId,
+        name: room.name,
+        genre: room.genre || 'Open Format',
+        cover_url: room.cover || room.cover_url || 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?q=80&w=800&auto=format&fit=crop',
+        is_live: room.isLive !== false,
+        current_track_id: room.currentTrack?.id || room.current_track_id || null,
+        current_position_sec: room.currentPosition || 0,
+        is_playing: Boolean(room.isPlaying),
+      })
+      .select()
+      .single();
+
+    if (error) throw new Error(`Database error creating room: ${error.message}`);
+
+    // Insert host as room member
+    await this.client.from('room_members').upsert({
+      room_id: roomId,
+      user_id: hostId,
+      role: 'host',
+    }, { onConflict: 'room_id,user_id' });
+
+    return {
+      ...room,
+      id: data.id,
+      code: data.code,
+      hostId: data.host_id,
+    };
+  }
+
+  async updateRoom(roomId, updates) {
+    if (!this.client) return null;
+    const mapped = {};
+    if (updates.name !== undefined) mapped.name = updates.name;
+    if (updates.genre !== undefined) mapped.genre = updates.genre;
+    if (updates.cover !== undefined || updates.cover_url !== undefined) {
+      mapped.cover_url = updates.cover || updates.cover_url;
+    }
+    if (updates.isLive !== undefined) mapped.is_live = updates.isLive;
+    if (updates.currentTrack !== undefined) {
+      mapped.current_track_id = updates.currentTrack?.id || null;
+    }
+    if (updates.currentPosition !== undefined) {
+      mapped.current_position_sec = updates.currentPosition;
+    }
+    if (updates.isPlaying !== undefined) {
+      mapped.is_playing = Boolean(updates.isPlaying);
+    }
+
+    const clean = String(roomId || '').trim();
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(clean);
+
+    let query = this.client.from('rooms').update(mapped);
+    if (isUuid) {
+      query = query.eq('id', clean);
+    } else {
+      query = query.or(`code.eq.${clean.toUpperCase()},id.eq.${toValidUuid(clean)}`);
+    }
+
+    const { data, error } = await query.select().single();
+    if (error) throw new Error(`Database error updating room: ${error.message}`);
+    return data;
+  }
+
+  async joinRoom(roomId, user) {
+    if (!this.client) return { success: true };
+    const roomUuid = toValidUuid(roomId);
+    const userUuid = toValidUuid(user.id);
+
+    // Gating capacity check
+    const { count } = await this.client
+      .from('room_members')
+      .select('*', { count: 'exact', head: true })
+      .eq('room_id', roomUuid);
+
+    if ((count || 0) >= 50) {
+      const err = new Error('ROOM_CAPACITY_REACHED: Room has reached its maximum limit of 50 participants.');
+      err.code = 'ROOM_CAPACITY_REACHED';
+      err.status = 409;
+      throw err;
+    }
+
+    const { error } = await this.client.from('room_members').upsert({
+      room_id: roomUuid,
+      user_id: userUuid,
+      role: user.role === 'host' || user.role === 'co-dj' ? user.role : 'listener',
+    }, { onConflict: 'room_id,user_id' });
+
+    if (error) throw new Error(`Database error joining room: ${error.message}`);
+
+    return {
+      success: true,
+      currentCount: (count || 0) + 1,
+      maxCapacity: 50,
+    };
+  }
+
+  async leaveRoom(roomId, userId) {
+    if (!this.client) return { success: true };
+    const roomUuid = toValidUuid(roomId);
+    const userUuid = toValidUuid(userId);
+
+    await this.client
+      .from('room_members')
+      .delete()
+      .eq('room_id', roomUuid)
+      .eq('user_id', userUuid);
+
+    return { success: true };
+  }
+
+  async closeRoom(roomId) {
+    if (!this.client) return { success: true };
+    return this.updateRoom(roomId, { isLive: false });
+  }
+
+  // =========================================================================
+  // 7. USER PLAYLISTS & PLAYLIST TRACKS
+  // =========================================================================
+
+  async getUserPlaylists(userId) {
+    if (!this.client) return [];
+    const userUuid = toValidUuid(userId);
+
+    const { data: playlists, error } = await this.client
+      .from('playlists')
+      .select('*, playlist_tracks(*)')
+      .eq('user_id', userUuid)
+      .order('created_at', { ascending: false });
+
+    if (error || !playlists) return [];
+
+    return playlists.map((p) => ({
+      id: p.id,
+      userId: p.user_id,
+      name: p.name,
+      description: p.description,
+      cover: p.cover_url,
+      isPublic: p.is_public,
+      createdAt: new Date(p.created_at).getTime(),
+      tracks: (p.playlist_tracks || [])
+        .sort((a, b) => a.position - b.position)
+        .map((t) => ({
+          id: t.track_id,
+          title: t.title,
+          artist: t.artist_name,
+          artist_name: t.artist_name,
+          album: t.album_name,
+          image: t.image_url,
+          audio: t.audio_url,
+          duration: t.duration_sec,
+          bpm: t.bpm,
+          key: t.musical_key,
+          energy: t.energy,
+        })),
+    }));
+  }
+
+  async createPlaylist(userId, playlist) {
+    if (!this.client) return null;
+    const userUuid = toValidUuid(userId);
+    const playlistUuid = toValidUuid(playlist.id);
+
+    const { data, error } = await this.client
+      .from('playlists')
+      .insert({
+        id: playlistUuid,
+        user_id: userUuid,
+        name: playlist.name,
+        description: playlist.description || '',
+        cover_url: playlist.cover || playlist.cover_url || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?q=80&w=600&auto=format&fit=crop',
+        is_public: playlist.isPublic !== false,
+      })
+      .select()
+      .single();
+
+    if (error) throw new Error(`Database error creating playlist: ${error.message}`);
+
+    const tracks = [];
+    if (Array.isArray(playlist.tracks) && playlist.tracks.length > 0) {
+      for (let i = 0; i < playlist.tracks.length; i++) {
+        const t = playlist.tracks[i];
+        const added = await this.addTrackToPlaylist(playlistUuid, t, i);
+        if (added) tracks.push(added);
+      }
+    }
+
+    return {
+      id: data.id,
+      userId: data.user_id,
+      name: data.name,
+      description: data.description,
+      cover: data.cover_url,
+      isPublic: data.is_public,
+      createdAt: new Date(data.created_at).getTime(),
+      tracks,
+    };
+  }
+
+  async addTrackToPlaylist(playlistId, track, position = 0) {
+    if (!this.client) return null;
+    const playlistUuid = toValidUuid(playlistId);
+
+    const { data, error } = await this.client
+      .from('playlist_tracks')
+      .insert({
+        playlist_id: playlistUuid,
+        track_id: String(track.id || track.track_id),
+        title: track.title || 'Untitled Track',
+        artist_name: track.artist || track.artist_name || 'Unknown Artist',
+        album_name: track.album || track.album_name || '',
+        image_url: track.image || track.image_url || '',
+        audio_url: track.audio || track.audio_url || '',
+        duration_sec: Number(track.duration) || 180,
+        bpm: Number(track.bpm) || 120,
+        musical_key: track.key || '8A',
+        energy: Number(track.energy) || 75,
+        position,
+      })
+      .select()
+      .single();
+
+    if (error) throw new Error(`Database error adding track to playlist: ${error.message}`);
+    return data;
+  }
+
+  async removeTrackFromPlaylist(playlistId, trackId) {
+    if (!this.client) return false;
+    const playlistUuid = toValidUuid(playlistId);
+
+    const { error } = await this.client
+      .from('playlist_tracks')
+      .delete()
+      .eq('playlist_id', playlistUuid)
+      .eq('track_id', String(trackId));
+
+    return !error;
+  }
+
+  async deletePlaylist(playlistId) {
+    if (!this.client) return false;
+    const playlistUuid = toValidUuid(playlistId);
+
+    const { error } = await this.client
+      .from('playlists')
+      .delete()
+      .eq('id', playlistUuid);
+
+    return !error;
+  }
+
+  // =========================================================================
+  // 8. LIKED SONGS (FAVORITES)
+  // =========================================================================
+
+  async getUserLikedTracks(userId) {
+    if (!this.client) return [];
+    const userUuid = toValidUuid(userId);
+
+    const { data, error } = await this.client
+      .from('liked_songs')
+      .select('track_id')
+      .eq('user_id', userUuid);
+
+    if (error || !data) return [];
+    return data.map((row) => row.track_id);
+  }
+
+  async toggleLikeTrack(userId, track) {
+    if (!this.client) return { liked: false, trackId: track.id, likes: [] };
+    const userUuid = toValidUuid(userId);
+    const trackIdStr = String(track.id || track.track_id);
+
+    // Check if already liked
+    const { data: existing } = await this.client
+      .from('liked_songs')
+      .select('id')
+      .eq('user_id', userUuid)
+      .eq('track_id', trackIdStr)
+      .single();
+
+    let liked = false;
+    if (existing) {
+      await this.client
+        .from('liked_songs')
+        .delete()
+        .eq('user_id', userUuid)
+        .eq('track_id', trackIdStr);
+      liked = false;
+    } else {
+      await this.client
+        .from('liked_songs')
+        .insert({
+          user_id: userUuid,
+          track_id: trackIdStr,
+          title: track.title || 'Untitled',
+          artist_name: track.artist || track.artist_name || 'Unknown',
+          album_name: track.album || track.album_name || '',
+          image_url: track.image || track.image_url || '',
+          audio_url: track.audio || track.audio_url || '',
+          duration_sec: Number(track.duration) || 180,
+          bpm: Number(track.bpm) || 120,
+          musical_key: track.key || '8A',
+          energy: Number(track.energy) || 75,
+        });
+      liked = true;
+    }
+
+    const likes = await this.getUserLikedTracks(userId);
+    return { liked, trackId: trackIdStr, likes };
+  }
+
+  // =========================================================================
+  // 9. LISTENING HISTORY & PERSONALIZATION
+  // =========================================================================
+
+  async getUserListeningHistory(userId) {
+    if (!this.client) return [];
+    const userUuid = toValidUuid(userId);
+
+    const { data, error } = await this.client
+      .from('listening_history')
+      .select('*')
+      .eq('user_id', userUuid)
+      .order('played_at', { ascending: false })
+      .limit(50);
+
+    if (error || !data) return [];
+    return data.map((h) => ({
+      id: h.track_id,
+      title: h.title,
+      artist: h.artist_name,
+      artist_name: h.artist_name,
+      album: h.album_name,
+      image: h.image_url,
+      audio: h.audio_url,
+      duration: h.duration_sec,
+      bpm: h.bpm,
+      key: h.musical_key,
+      playedAt: h.played_at,
+    }));
+  }
+
+  async recordListeningHistory(userId, track) {
+    if (!this.client) return null;
+    const userUuid = toValidUuid(userId);
+
+    const { data, error } = await this.client
+      .from('listening_history')
+      .insert({
+        user_id: userUuid,
+        track_id: String(track.id || track.track_id),
+        title: track.title || 'Untitled',
+        artist_name: track.artist || track.artist_name || 'Unknown',
+        album_name: track.album || track.album_name || '',
+        image_url: track.image || track.image_url || '',
+        audio_url: track.audio || track.audio_url || '',
+        duration_sec: Number(track.duration) || 180,
+        bpm: Number(track.bpm) || 120,
+        musical_key: track.key || '8A',
+      })
+      .select()
+      .single();
+
+    if (error) return null;
+    return data;
+  }
+
+  // =========================================================================
+  // 10. ROOM CHAT MESSAGES
+  // =========================================================================
+
+  async getRoomMessages(roomId) {
+    if (!this.client) return [];
+    const roomUuid = toValidUuid(roomId);
+
+    const { data, error } = await this.client
+      .from('room_messages')
+      .select('*')
+      .eq('room_id', roomUuid)
+      .order('created_at', { ascending: true })
+      .limit(100);
+
+    if (error || !data) return [];
+    return data.map((m) => ({
+      id: m.id,
+      roomId,
+      userId: m.user_id,
+      userName: m.user_name,
+      userEmail: m.user_email,
+      userAvatar: m.user_avatar,
+      message: m.message,
+      isAi: Boolean(m.is_ai),
+      isSystem: Boolean(m.is_system),
+      timestamp: new Date(m.created_at).getTime(),
+    }));
+  }
+
+  async addRoomMessage(roomId, msg) {
+    if (!this.client) return msg;
+    const roomUuid = toValidUuid(roomId);
+    const userUuid = msg.userId ? toValidUuid(msg.userId) : null;
+
+    const { data, error } = await this.client
+      .from('room_messages')
+      .insert({
+        room_id: roomUuid,
+        user_id: userUuid,
+        user_name: msg.userName || 'Anonymous',
+        user_email: msg.userEmail || null,
+        user_avatar: msg.userAvatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?q=80&w=200&auto=format&fit=crop',
+        message: msg.message || '',
+        is_ai: Boolean(msg.isAi),
+        is_system: Boolean(msg.isSystem),
+      })
+      .select()
+      .single();
+
+    if (error) return msg;
+    return {
+      ...msg,
+      id: data.id,
+      timestamp: new Date(data.created_at).getTime(),
+    };
+  }
+
+  // =========================================================================
+  // 11. SAFE DATA MIGRATION INTO POSTGRESQL
   // =========================================================================
 
   /**
@@ -579,6 +1101,23 @@ export class PostgresAdapter {
             await this.createUser(u);
           }
           console.log(`[DATABASE MIGRATION] Migrated ${users.length} user profiles to PostgreSQL.`);
+        }
+      }
+
+      // Check if rooms table is empty
+      const { count: roomCount } = await this.client
+        .from('rooms')
+        .select('*', { count: 'exact', head: true });
+
+      if (roomCount === 0) {
+        console.log('[DATABASE MIGRATION] PostgreSQL rooms table is empty. Migrating rooms from data/rooms.json...');
+        const roomsFile = path.join(dataDir, 'rooms.json');
+        if (fs.existsSync(roomsFile)) {
+          const rooms = JSON.parse(fs.readFileSync(roomsFile, 'utf8'));
+          for (const r of rooms) {
+            await this.createRoom(r).catch(() => {});
+          }
+          console.log(`[DATABASE MIGRATION] Migrated ${rooms.length} rooms to PostgreSQL.`);
         }
       }
 

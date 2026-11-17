@@ -6,6 +6,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { atomicWriteJsonSync } from './db.js';
+import { postgresAdapter } from './postgresAdapter.js';
 
 const CHAT_FILE = path.resolve('data', 'room_messages.json');
 
@@ -59,6 +60,10 @@ export function addRoomMessage(roomId, message) {
   const updated = [...current, message].slice(-100); // Last 100 messages per room
   messagesByRoom.set(cleanRoomId, updated);
   saveChat();
+
+  if (postgresAdapter.getStatus().configured) {
+    postgresAdapter.addRoomMessage(cleanRoomId, message).catch(() => {});
+  }
 
   return message;
 }

@@ -1251,5 +1251,10 @@ if (isMain) {
 
   server.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 AI DJ Studio Production Server running at http://0.0.0.0:${PORT}`);
+    if (postgresAdapter.getStatus().configured) {
+      postgresAdapter.autoMigrateIfEmpty().catch((err) => {
+        console.warn('[DATABASE MIGRATION WARNING]', err.message);
+      });
+    }
   });
 }

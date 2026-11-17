@@ -7,6 +7,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { atomicWriteJsonSync } from './db.js';
+import { postgresAdapter } from './postgresAdapter.js';
 
 const ROOMS_FILE = path.resolve('data', 'rooms.json');
 const MAX_CAPACITY = 50;
@@ -208,6 +209,12 @@ export function createRoom(data, hostUser) {
   roomsCache.unshift(newRoom);
   saveRooms();
 
+  if (postgresAdapter.getStatus().configured) {
+    postgresAdapter.createRoom(newRoom, hostUser).catch((err) => {
+      console.warn('[POSTGRES SYNC] Room create error:', err.message);
+    });
+  }
+
   // Register in memory capacity
   let set = participantsByRoom.get(roomId);
   if (!set) {
@@ -260,6 +267,12 @@ export function updateRoom(roomId, updates, actingUser = null) {
   roomsCache[index] = room;
   saveRooms();
 
+  if (postgresAdapter.getStatus().configured) {
+    postgresAdapter.updateRoom(roomId, updates).catch((err) => {
+      console.warn('[POSTGRES SYNC] Room update error:', err.message);
+    });
+  }
+
   return room;
 }
 
@@ -307,6 +320,10 @@ export function joinRoom(roomId, user) {
   roomsCache[index] = room;
   saveRooms();
 
+  if (postgresAdapter.getStatus().configured) {
+    postgresAdapter.joinRoom(room.id, user).catch(() => {});
+  }
+
   return room;
 }
 
@@ -336,6 +353,10 @@ export function leaveRoom(roomId, userId) {
   roomsCache[index] = room;
   saveRooms();
 
+  if (postgresAdapter.getStatus().configured) {
+    postgresAdapter.leaveRoom(room.id, userId).catch(() => {});
+  }
+
   return { success: true, listenerCount: room.listenerCount };
 }
 
@@ -358,6 +379,10 @@ export function closeRoom(roomId, hostUserId) {
 
   // Clean capacity map
   participantsByRoom.delete(room.id);
+
+  if (postgresAdapter.getStatus().configured) {
+    postgresAdapter.closeRoom(room.id).catch(() => {});
+  }
 
   return { success: true, closedRoomId: room.id };
 }
