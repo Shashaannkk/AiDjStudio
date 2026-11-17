@@ -1157,6 +1157,12 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
         rightPanelView: 'chat',
       });
 
+      chatService.fetchRoomMessagesAsync(room.id).then((freshMsgs) => {
+        if (freshMsgs && freshMsgs.length > 0) {
+          set({ roomMessages: freshMsgs });
+        }
+      }).catch(() => {});
+
       // Connect to Realtime channel with Capacity Enforcement (Max 50)
       try {
         await realtimeRoomService.joinRoom(room, participant);
@@ -1205,7 +1211,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
       const state = get();
       const hostUser = state.user;
       const hostId = hostUser?.id || `usr_${Date.now()}`;
-      const hostName = hostUser ? hostUser.name : 'Shashank';
+      const hostName = hostUser ? hostUser.name : 'Resident DJ';
       const hostAvatar =
         hostUser?.avatar ||
         'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?q=80&w=200&auto=format&fit=crop';

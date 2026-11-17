@@ -1,5 +1,4 @@
 import type { ChatMessage } from '../types/music';
-import { FIXTURE_CHAT_MESSAGES } from '../fixtures/musicFixtures';
 import { userService } from './userService';
 
 const CHAT_STORAGE_PREFIX = 'aidj_chat_history_';
@@ -94,20 +93,41 @@ class ChatService {
    * Get persistent chat messages for a specific room
    */
   public getRoomMessages(roomId: string): ChatMessage[] {
-    if (typeof window === 'undefined' || !roomId) return FIXTURE_CHAT_MESSAGES;
+    if (typeof window === 'undefined' || !roomId) return [];
     try {
       const key = `${CHAT_STORAGE_PREFIX}${roomId}`;
       const data = localStorage.getItem(key);
       if (data) {
         const parsed = JSON.parse(data);
-        if (Array.isArray(parsed) && parsed.length > 0) {
+        if (Array.isArray(parsed)) {
           return parsed;
         }
       }
     } catch (e) {
       console.warn('Error reading chat history from storage:', e);
     }
-    return FIXTURE_CHAT_MESSAGES;
+    return [];
+  }
+
+  /**
+   * Fetch chat messages for a specific room from backend
+   */
+  public async fetchRoomMessagesAsync(roomId: string): Promise<ChatMessage[]> {
+    if (!roomId) return [];
+    try {
+      const res = await fetch(`/api/chat/messages?roomId=${encodeURIComponent(roomId)}`);
+      if (res.ok) {
+        const msgs = await res.json();
+        if (Array.isArray(msgs)) {
+          const key = `${CHAT_STORAGE_PREFIX}${roomId}`;
+          localStorage.setItem(key, JSON.stringify(msgs));
+          return msgs;
+        }
+      }
+    } catch (err) {
+      console.warn('Error fetching room messages from backend:', err);
+    }
+    return this.getRoomMessages(roomId);
   }
 
   /**

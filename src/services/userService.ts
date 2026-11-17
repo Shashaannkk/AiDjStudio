@@ -1,5 +1,4 @@
 import type { UserProfile, Playlist, LiveRoom, Track } from '../types/music';
-import { FIXTURE_PLAYLISTS, FIXTURE_LIVE_ROOMS } from '../fixtures/musicFixtures';
 import { getSupabaseClient, isSupabaseConfigured } from './supabase';
 
 const STORAGE_KEYS = {
@@ -177,7 +176,7 @@ class UserService {
         this.saveCurrentUser(data.user);
         this.notifyAuthSubscribers(data.user);
         return { user: data.user, error: null };
-      } else if (res.status === 400 || res.status === 409) {
+      } else {
         return { user: null, error: data.error || 'Registration failed' };
       }
     } catch {
@@ -186,16 +185,7 @@ class UserService {
 
     const supabase = getSupabaseClient();
     if (!supabase) {
-      // Offline/Local Developer Fallback
-      const localUser: UserProfile = {
-        id: `usr_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-        name: cleanName,
-        email: cleanEmail,
-        avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?q=80&w=200&auto=format&fit=crop',
-        role: 'listener',
-      };
-      this.saveCurrentUser(localUser);
-      return { user: localUser, error: null };
+      return { user: null, error: 'Authentication service unavailable. Please check backend connection.' };
     }
 
     try {
@@ -258,7 +248,7 @@ class UserService {
         this.saveCurrentUser(data.user);
         this.notifyAuthSubscribers(data.user);
         return { user: data.user, error: null };
-      } else if (res.status === 401 || res.status === 400) {
+      } else {
         return { user: null, error: data.error || 'Invalid email or password' };
       }
     } catch {
@@ -267,16 +257,7 @@ class UserService {
 
     const supabase = getSupabaseClient();
     if (!supabase) {
-      // Offline/Local Developer Fallback
-      const localUser: UserProfile = {
-        id: `usr_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-        name: cleanEmail.split('@')[0] || 'DJ User',
-        email: cleanEmail,
-        avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?q=80&w=200&auto=format&fit=crop',
-        role: cleanEmail.includes('admin') ? 'admin' : 'listener',
-      };
-      this.saveCurrentUser(localUser);
-      return { user: localUser, error: null };
+      return { user: null, error: 'Authentication service unavailable. Please check backend connection.' };
     }
 
     try {
@@ -547,29 +528,52 @@ class UserService {
   }
 
   /**
-   * Fetch Playlists: Synchronous Local / Fixture cache
+   * Fetch Playlists: Synchronous Local cache
    */
   public getUserPlaylists(userId: string): Playlist[] {
-    if (typeof window === 'undefined') return FIXTURE_PLAYLISTS;
+    if (typeof window === 'undefined') return [];
     try {
       const key = `${STORAGE_KEYS.PLAYLISTS_PREFIX}${userId || 'guest'}`;
       const data = localStorage.getItem(key);
       if (data) {
         const parsed = JSON.parse(data);
-        if (Array.isArray(parsed) && parsed.length > 0) {
+        if (Array.isArray(parsed)) {
           return parsed;
         }
       }
     } catch (e) {
       console.warn('Error reading user playlists:', e);
     }
-    return FIXTURE_PLAYLISTS;
+    return [];
   }
 
   /**
-   * Fetch Playlists from Supabase with tracks joined
+   * Fetch Playlists from Backend API or Supabase with tracks joined
    */
   public async fetchPlaylistsAsync(userId: string): Promise<Playlist[]> {
+    // 1. First check backend persistent library API
+    const token = this.getAuthToken();
+    if (token) {
+      try {
+        const res = await fetch('/api/library/playlists', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const json = await res.json();
+          if (Array.isArray(json.playlists)) {
+            const playlists = json.playlists;
+            if (typeof window !== 'undefined') {
+              const key = `${STORAGE_KEYS.PLAYLISTS_PREFIX}${userId || 'guest'}`;
+              localStorage.setItem(key, JSON.stringify(playlists));
+            }
+            return playlists;
+          }
+        }
+      } catch (err) {
+        console.warn('Backend playlists fetch error:', err);
+      }
+    }
+
     const supabase = getSupabaseClient();
     if (supabase && userId && isSupabaseConfigured()) {
       try {
@@ -579,7 +583,7 @@ class UserService {
           .eq('user_id', userId)
           .order('created_at', { ascending: false });
 
-        if (!error && Array.isArray(data) && data.length > 0) {
+        if (!error && Array.isArray(data)) {
           return data.map((pl: any) => ({
             id: pl.id,
             name: pl.name,
@@ -766,19 +770,38 @@ class UserService {
    * Get all active Live Rooms
    */
   public getLiveRooms(): LiveRoom[] {
-    if (typeof window === 'undefined') return FIXTURE_LIVE_ROOMS;
+    if (typeof window === 'undefined') return [];
     try {
       const data = localStorage.getItem(STORAGE_KEYS.ROOMS);
       if (data) {
         const parsed = JSON.parse(data);
-        if (Array.isArray(parsed) && parsed.length > 0) {
+        if (Array.isArray(parsed)) {
           return parsed;
         }
       }
     } catch (e) {
       console.warn('Error reading live rooms from storage:', e);
     }
-    return FIXTURE_LIVE_ROOMS;
+    return [];
+  }
+
+  /**
+   * Fetch active Live Rooms from Backend API
+   */
+  public async fetchLiveRoomsAsync(): Promise<LiveRoom[]> {
+    try {
+      const res = await fetch('/api/rooms');
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.rooms)) {
+          this.saveLiveRooms(data.rooms);
+          return data.rooms;
+        }
+      }
+    } catch (err) {
+      console.warn('Error fetching live rooms from backend:', err);
+    }
+    return this.getLiveRooms();
   }
 
   /**
@@ -798,12 +821,25 @@ class UserService {
   }
 
   /**
-   * Add a new Live Room and persist to Supabase rooms table
+   * Add a new Live Room and persist to Backend rooms API and Supabase
    */
   public addLiveRoom(newRoom: LiveRoom, hostId?: string): LiveRoom[] {
     const current = this.getLiveRooms();
     const updated = [newRoom, ...current.filter((r) => r.id !== newRoom.id)];
     this.saveLiveRooms(updated);
+
+    // Persist to backend
+    const token = this.getAuthToken();
+    if (token) {
+      fetch('/api/rooms', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(newRoom),
+      }).catch((err) => console.warn('Notice saving room to backend:', err));
+    }
 
     // Persist to Supabase if configured and valid UUID hostId
     const supabase = getSupabaseClient();

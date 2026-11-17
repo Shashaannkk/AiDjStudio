@@ -11,7 +11,6 @@ import {
   ShieldCheck,
   Disc3,
   ExternalLink,
-  Users,
   AlertCircle,
   Loader2,
 } from 'lucide-react';
@@ -42,25 +41,6 @@ export const AuthModal: React.FC = () => {
 
   // Google Client ID state
   const [customClientId, setCustomClientId] = useState(userService.getGoogleClientId());
-
-  // One-Click Fast Multi-Account Testing Profiles
-  const testProfiles = [
-    {
-      name: 'Shashank Poojari',
-      email: 'shashank.poojari@gmail.com',
-      avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?q=80&w=200&auto=format&fit=crop',
-    },
-    {
-      name: 'Sarah Connor',
-      email: 'sarah.dj@soundpulse.io',
-      avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=200&auto=format&fit=crop',
-    },
-    {
-      name: 'Alex Producer',
-      email: 'alex.producer@beats.org',
-      avatar: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?q=80&w=200&auto=format&fit=crop',
-    },
-  ];
 
   const [prevAuthMode, setPrevAuthMode] = useState(authMode);
   if (prevAuthMode !== authMode) {
@@ -132,16 +112,6 @@ export const AuthModal: React.FC = () => {
     setShowConfig(false);
   };
 
-  const handleQuickProfileSelect = (p: (typeof testProfiles)[0]) => {
-    login({
-      id: `usr_${p.email.replace(/[^a-zA-Z0-9]/g, '_')}`,
-      name: p.name,
-      email: p.email,
-      avatar: p.avatar,
-    });
-    closeAuthModal();
-  };
-
   const handleGoogleOAuth = () => {
     setIsGoogleLoading(true);
     setGoogleAuthNotice(null);
@@ -191,9 +161,9 @@ export const AuthModal: React.FC = () => {
       }
     }
 
-    // If no Google Client ID is configured yet, guide user or sign in as default test user
+    // If no Google Client ID is configured yet, guide user to email login or configure client ID
     setGoogleAuthNotice(
-      'Google Client ID not set in .env yet. Click any test profile below or configure your Google Client ID.'
+      'Google Client ID not configured. Please use Email/Password authentication or configure your Google Client ID via the settings icon.'
     );
     setIsGoogleLoading(false);
   };
@@ -380,44 +350,6 @@ export const AuthModal: React.FC = () => {
                 ? 'Sign in to sync your liked tracks, collaborative rooms, and live chat.'
                 : 'Host live listening rooms, chat with friends, and mix tracks across music providers.'}
             </p>
-          </div>
-
-          {/* Quick One-Click Multi-Account Switcher (Perfect for checking chat between accounts!) */}
-          <div className="p-3 rounded-2xl bg-[#1c1c1c] border border-white/10 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold text-white flex items-center gap-1.5">
-                <Users className="w-3.5 h-3.5 text-[#1DB954]" />
-                <span>Instant Account Switcher (For Multi-User Chat Test)</span>
-              </span>
-              <span className="text-[9px] text-[#1DB954] uppercase font-extrabold px-1.5 py-0.2 bg-[#1DB954]/20 rounded">
-                Per-Tab Isolated
-              </span>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-              {testProfiles.map((p) => (
-                <button
-                  key={p.email}
-                  type="button"
-                  onClick={() => handleQuickProfileSelect(p)}
-                  className="p-2 rounded-xl bg-[#252525] hover:bg-[#2e2e2e] border border-white/5 hover:border-[#1DB954]/40 text-left transition-all group flex items-center gap-2 cursor-pointer"
-                >
-                  <img
-                    src={p.avatar}
-                    alt={p.name}
-                    className="w-7 h-7 rounded-full object-cover ring-1 ring-white/10 flex-shrink-0"
-                  />
-                  <div className="min-w-0">
-                    <p className="text-[11px] font-bold text-white group-hover:text-[#1DB954] truncate">
-                      {p.name.split(' ')[0]}
-                    </p>
-                    <p className="text-[9px] text-[#71717A] truncate">
-                      {p.email.split('@')[0]}
-                    </p>
-                  </div>
-                </button>
-              ))}
-            </div>
           </div>
 
           {/* Google OAuth Login Action */}

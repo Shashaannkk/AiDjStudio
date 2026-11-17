@@ -465,6 +465,23 @@ export function getUserById(id) {
   return sanitizeUser(user);
 }
 
+export function updateUserProfile(userId, { name, avatar }) {
+  loadUsers();
+  const idx = usersCache.findIndex((u) => u.id === userId);
+  if (idx < 0) {
+    throw new Error('User not found');
+  }
+  if (name && typeof name === 'string' && name.trim()) {
+    usersCache[idx].name = name.trim();
+  }
+  if (avatar && typeof avatar === 'string' && avatar.trim()) {
+    usersCache[idx].avatar = avatar.trim();
+  }
+  usersCache[idx].updatedAt = Date.now();
+  saveUsers();
+  return sanitizeUser(usersCache[idx]);
+}
+
 export function getAllUsers() {
   loadUsers();
   return usersCache.map(sanitizeUser);

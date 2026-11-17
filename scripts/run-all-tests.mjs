@@ -19,6 +19,7 @@ const suites = [
   { name: 'Phase 12: Master 15-Domain E2E Integration Suite', cmd: 'node scripts/run-ts.mjs scripts/test-master-e2e-integration.mjs' },
   { name: 'Phase 13: GitHub Security & Credential Hardening', cmd: 'node scripts/test-phase13-github-security-audit.mjs' },
   { name: 'Phase 14: Full Application Security & Penetration Hardening', cmd: 'node scripts/test-security-remediations.mjs' },
+  { name: 'Phase 15: Real Multi-User Functionality & Demo Removal Integration', cmd: 'node scripts/test-real-functionality-e2e.mjs' },
 ];
 
 console.log('========================================================================');

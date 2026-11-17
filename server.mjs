@@ -11,6 +11,7 @@ import {
   revokeRefreshToken,
   authenticateRequest,
   getAllUsers,
+  updateUserProfile,
 } from './src/server/auth.js';
 
 import {
@@ -51,7 +52,32 @@ import {
   joinRoomCapacity,
   leaveRoomCapacity,
   getRoomCapacity,
+  listRooms,
+  getRoom,
+  createRoom,
+  updateRoom,
+  joinRoom,
+  leaveRoom,
+  closeRoom,
 } from './src/server/rooms.js';
+
+import {
+  getUserPlaylists,
+  createPlaylist,
+  addTrackToPlaylist,
+  removeTrackFromPlaylist,
+  deletePlaylist,
+  getUserLikedTracks,
+  toggleLikeTrack,
+  getUserListeningHistory,
+  recordListeningHistory,
+} from './src/server/library.js';
+
+import {
+  getRoomMessages,
+  addRoomMessage,
+  getAllActiveRoomsWithMessages,
+} from './src/server/chat.js';
 
 import { postgresAdapter } from './src/server/db.js';
 
@@ -93,7 +119,6 @@ const MIME_TYPES = {
 
 // In-Memory Real-Time State
 const sseClients = new Set();
-const messagesByRoom = new Map();
 
 // Sliding Window Rate Limiter (General API)
 const rateLimitMap = new Map();
@@ -169,6 +194,7 @@ function parseJsonBody(req) {
 
 export function handleApiRequest(req, res) {
   const urlStr = req.url || '';
+  const pathname = urlStr.split('?')[0];
 
   // Handle CORS preflight options
   if (req.method === 'OPTIONS') {
@@ -197,7 +223,7 @@ export function handleApiRequest(req, res) {
       },
       realtime: {
         activeSseClients: sseClients.size,
-        activeRooms: messagesByRoom.size,
+        activeRooms: getAllActiveRoomsWithMessages().size,
       },
     });
     return true;
@@ -295,6 +321,23 @@ export function handleApiRequest(req, res) {
     return true;
   }
 
+  if (urlStr === '/api/auth/profile' && req.method === 'PATCH') {
+    const auth = authenticateRequest(req);
+    if (!auth.authenticated) {
+      sendJson(res, 401, { error: auth.error, status: 401 });
+      return true;
+    }
+    parseJsonBody(req)
+      .then((data) => {
+        const updated = updateUserProfile(auth.user.id, data || {});
+        sendJson(res, 200, { success: true, user: updated });
+      })
+      .catch((err) => {
+        sendJson(res, 400, { error: err.message });
+      });
+    return true;
+  }
+
   // -------------------------------------------------------------------------
   // 3. AUTHENTICATED REAL-TIME SSE CHAT STREAM
   // -------------------------------------------------------------------------
@@ -309,13 +352,17 @@ export function handleApiRequest(req, res) {
       return true;
     }
 
+    const url = new URL(urlStr, `http://${req.headers.host || 'localhost'}`);
+    const roomId = url.searchParams.get('roomId') || '';
+
     res.writeHead(200, {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache',
       'Connection': 'keep-alive',
       'Access-Control-Allow-Origin': '*',
     });
-    res.write(`data: ${JSON.stringify({ type: 'CONNECTED', user: auth.user })}\n\n`);
+    res.roomId = roomId;
+    res.write(`data: ${JSON.stringify({ type: 'CONNECTED', user: auth.user, roomId })}\n\n`);
     sseClients.add(res);
 
     req.on('close', () => {
@@ -327,7 +374,7 @@ export function handleApiRequest(req, res) {
   if (urlStr.startsWith('/api/chat/messages') && req.method === 'GET') {
     const url = new URL(urlStr, `http://${req.headers.host || 'localhost'}`);
     const roomId = url.searchParams.get('roomId') || 'room_late_night_lounge';
-    const list = messagesByRoom.get(roomId) || [];
+    const list = getRoomMessages(roomId);
     sendJson(res, 200, list);
     return true;
   }
@@ -369,9 +416,7 @@ export function handleApiRequest(req, res) {
         };
 
         const roomId = data.roomId || 'room_late_night_lounge';
-        const current = messagesByRoom.get(roomId) || [];
-        const updated = [...current, message].slice(-100);
-        messagesByRoom.set(roomId, updated);
+        addRoomMessage(roomId, message);
 
         const ssePayload = `data: ${JSON.stringify({
           type: 'NEW_CHAT_MESSAGE',
@@ -381,7 +426,9 @@ export function handleApiRequest(req, res) {
 
         for (const client of sseClients) {
           try {
-            client.write(ssePayload);
+            if (!client.roomId || client.roomId === roomId) {
+              client.write(ssePayload);
+            }
           } catch {
             sseClients.delete(client);
           }
@@ -541,12 +588,14 @@ export function handleApiRequest(req, res) {
 
     parseJsonBody(req)
       .then((data) => {
-        const { roomId, queueItemId } = data;
+        const roomId = data.roomId;
+        const queueItemId = data.queueItemId || data.trackId;
         const vote = data.vote !== undefined ? data.vote : data.voteValue;
         // SEC-API-02: Enforce authenticated user's ID to prevent vote forging / BOLA
         const userId = auth.user.id;
         const result = castQueueVote(roomId, queueItemId, userId, vote);
-        sendJson(res, 200, { success: true, votes: result }, req);
+        const itemVote = result && result[queueItemId] ? result[queueItemId] : null;
+        sendJson(res, 200, { success: true, score: itemVote?.score ?? 0, votes: result }, req);
       })
       .catch((err) => {
         sendJson(res, 400, { error: err.message }, req);
@@ -740,10 +789,112 @@ export function handleApiRequest(req, res) {
   }
 
   // -------------------------------------------------------------------------
-  // 9. ROOM CAPACITY & CONCURRENCY ENFORCEMENT
+  // 9. ROOMS, CAPACITY & CONCURRENCY ENFORCEMENT
   // -------------------------------------------------------------------------
 
-  if (urlStr === '/api/rooms/join' && req.method === 'POST') {
+  if (pathname === '/api/rooms' && req.method === 'GET') {
+    sendJson(res, 200, { rooms: listRooms() });
+    return true;
+  }
+
+  if (pathname === '/api/rooms' && req.method === 'POST') {
+    const auth = authenticateRequest(req);
+    if (!auth.authenticated) {
+      sendJson(res, 401, { error: auth.error, status: 401 });
+      return true;
+    }
+    parseJsonBody(req)
+      .then((data) => {
+        const room = createRoom(data, auth.user);
+        sendJson(res, 201, { success: true, room });
+      })
+      .catch((err) => {
+        sendJson(res, 400, { error: err.message });
+      });
+    return true;
+  }
+
+  if (pathname.startsWith('/api/rooms/') && !pathname.startsWith('/api/rooms/capacity') && pathname !== '/api/rooms/join' && pathname !== '/api/rooms/leave') {
+    const subPath = pathname.replace('/api/rooms/', '');
+    const segments = subPath.split('/');
+    const roomId = decodeURIComponent(segments[0]);
+    const action = segments[1];
+
+    if (!action && req.method === 'GET') {
+      const room = getRoom(roomId);
+      if (!room) {
+        sendJson(res, 404, { error: 'Room not found' });
+      } else {
+        sendJson(res, 200, { room });
+      }
+      return true;
+    }
+
+    if (!action && req.method === 'PATCH') {
+      const auth = authenticateRequest(req);
+      if (!auth.authenticated) {
+        sendJson(res, 401, { error: auth.error, status: 401 });
+        return true;
+      }
+      parseJsonBody(req)
+        .then((data) => {
+          const room = updateRoom(roomId, data, auth.user);
+          sendJson(res, 200, { success: true, room });
+        })
+        .catch((err) => {
+          sendJson(res, err.message && err.message.includes('Forbidden') ? 403 : 400, { error: err.message });
+        });
+      return true;
+    }
+
+    if (!action && req.method === 'DELETE') {
+      const auth = authenticateRequest(req);
+      if (!auth.authenticated) {
+        sendJson(res, 401, { error: auth.error, status: 401 });
+        return true;
+      }
+      try {
+        const result = closeRoom(roomId, auth.user.id);
+        sendJson(res, 200, result);
+      } catch (err) {
+        sendJson(res, err.message && err.message.includes('Forbidden') ? 403 : 400, { error: err.message });
+      }
+      return true;
+    }
+
+    if (action === 'join' && req.method === 'POST') {
+      const auth = authenticateRequest(req);
+      if (!auth.authenticated) {
+        sendJson(res, 401, { error: auth.error, status: 401 });
+        return true;
+      }
+      try {
+        const room = joinRoom(roomId, auth.user);
+        sendJson(res, 200, { success: true, room });
+      } catch (err) {
+        sendJson(res, err.status || 400, { error: err.message, code: err.code });
+      }
+      return true;
+    }
+
+    if (action === 'leave' && req.method === 'POST') {
+      const auth = authenticateRequest(req);
+      const userId = auth.authenticated ? auth.user.id : null;
+      parseJsonBody(req)
+        .then((data) => {
+          const finalUserId = userId || data.userId;
+          const result = leaveRoom(roomId, finalUserId);
+          sendJson(res, 200, result);
+        })
+        .catch(() => {
+          const result = leaveRoom(roomId, userId);
+          sendJson(res, 200, result);
+        });
+      return true;
+    }
+  }
+
+  if (pathname === '/api/rooms/join' && req.method === 'POST') {
     parseJsonBody(req)
       .then((data) => {
         const result = joinRoomCapacity(data.roomId, data.userId);
@@ -755,7 +906,7 @@ export function handleApiRequest(req, res) {
     return true;
   }
 
-  if (urlStr === '/api/rooms/leave' && req.method === 'POST') {
+  if (pathname === '/api/rooms/leave' && req.method === 'POST') {
     parseJsonBody(req)
       .then((data) => {
         const result = leaveRoomCapacity(data.roomId, data.userId);
@@ -767,10 +918,150 @@ export function handleApiRequest(req, res) {
     return true;
   }
 
-  if (urlStr.startsWith('/api/rooms/capacity') && req.method === 'GET') {
+  if (pathname.startsWith('/api/rooms/capacity') && req.method === 'GET') {
     const url = new URL(urlStr, `http://${req.headers.host || 'localhost'}`);
     const roomId = url.searchParams.get('roomId') || 'main_room';
     sendJson(res, 200, getRoomCapacity(roomId));
+    return true;
+  }
+
+  // -------------------------------------------------------------------------
+  // 9B. USER LIBRARY, PLAYLISTS & HISTORY PERSISTENCE
+  // -------------------------------------------------------------------------
+
+  if (pathname === '/api/library/playlists' && req.method === 'GET') {
+    const auth = authenticateRequest(req);
+    if (!auth.authenticated) {
+      sendJson(res, 401, { error: auth.error, status: 401 });
+      return true;
+    }
+    const playlists = getUserPlaylists(auth.user.id);
+    sendJson(res, 200, { playlists });
+    return true;
+  }
+
+  if (pathname === '/api/library/playlists' && req.method === 'POST') {
+    const auth = authenticateRequest(req);
+    if (!auth.authenticated) {
+      sendJson(res, 401, { error: auth.error, status: 401 });
+      return true;
+    }
+    parseJsonBody(req)
+      .then((data) => {
+        const playlist = createPlaylist(auth.user.id, data);
+        sendJson(res, 201, { success: true, playlist });
+      })
+      .catch((err) => {
+        sendJson(res, 400, { error: err.message });
+      });
+    return true;
+  }
+
+  if (pathname.startsWith('/api/library/playlists/') && pathname.includes('/tracks/') && req.method === 'DELETE') {
+    const auth = authenticateRequest(req);
+    if (!auth.authenticated) {
+      sendJson(res, 401, { error: auth.error, status: 401 });
+      return true;
+    }
+    const parts = pathname.replace('/api/library/playlists/', '').split('/tracks/');
+    const playlistId = decodeURIComponent(parts[0]);
+    const trackId = decodeURIComponent(parts[1]);
+    try {
+      const playlist = removeTrackFromPlaylist(auth.user.id, playlistId, trackId);
+      sendJson(res, 200, { success: true, playlist });
+    } catch (err) {
+      sendJson(res, 400, { error: err.message });
+    }
+    return true;
+  }
+
+  if (pathname.startsWith('/api/library/playlists/') && pathname.includes('/tracks') && req.method === 'POST') {
+    const auth = authenticateRequest(req);
+    if (!auth.authenticated) {
+      sendJson(res, 401, { error: auth.error, status: 401 });
+      return true;
+    }
+    const playlistId = decodeURIComponent(pathname.replace('/api/library/playlists/', '').split('/tracks')[0]);
+    parseJsonBody(req)
+      .then((data) => {
+        const playlist = addTrackToPlaylist(auth.user.id, playlistId, data.track);
+        sendJson(res, 200, { success: true, playlist });
+      })
+      .catch((err) => {
+        sendJson(res, 400, { error: err.message });
+      });
+    return true;
+  }
+
+  if (pathname.startsWith('/api/library/playlists/') && req.method === 'DELETE') {
+    const auth = authenticateRequest(req);
+    if (!auth.authenticated) {
+      sendJson(res, 401, { error: auth.error, status: 401 });
+      return true;
+    }
+    const playlistId = decodeURIComponent(pathname.replace('/api/library/playlists/', '').split('/')[0]);
+    try {
+      const result = deletePlaylist(auth.user.id, playlistId);
+      sendJson(res, 200, result);
+    } catch (err) {
+      sendJson(res, 400, { error: err.message });
+    }
+    return true;
+  }
+
+  if (pathname === '/api/library/likes' && req.method === 'GET') {
+    const auth = authenticateRequest(req);
+    if (!auth.authenticated) {
+      sendJson(res, 401, { error: auth.error, status: 401 });
+      return true;
+    }
+    const likedTracks = getUserLikedTracks(auth.user.id);
+    sendJson(res, 200, { likedTracks });
+    return true;
+  }
+
+  if (pathname === '/api/library/likes' && req.method === 'POST') {
+    const auth = authenticateRequest(req);
+    if (!auth.authenticated) {
+      sendJson(res, 401, { error: auth.error, status: 401 });
+      return true;
+    }
+    parseJsonBody(req)
+      .then((data) => {
+        const result = toggleLikeTrack(auth.user.id, data.trackId);
+        sendJson(res, 200, result);
+      })
+      .catch((err) => {
+        sendJson(res, 400, { error: err.message });
+      });
+    return true;
+  }
+
+  if (pathname === '/api/library/history' && req.method === 'GET') {
+    const auth = authenticateRequest(req);
+    if (!auth.authenticated) {
+      sendJson(res, 401, { error: auth.error, status: 401 });
+      return true;
+    }
+    const history = getUserListeningHistory(auth.user.id);
+    sendJson(res, 200, { history });
+    return true;
+  }
+
+  if (pathname === '/api/library/history' && req.method === 'POST') {
+    const auth = authenticateRequest(req);
+    if (!auth.authenticated) {
+      sendJson(res, 401, { error: auth.error, status: 401 });
+      return true;
+    }
+    parseJsonBody(req)
+      .then((data) => {
+        const result = recordListeningHistory(auth.user.id, data.track);
+        sendJson(res, 200, { success: true, history: result });
+      })
+      .catch((err) => {
+        sendJson(res, 400, { error: err.message });
+      });
     return true;
   }
 

@@ -91,7 +91,7 @@ export const HomeView: React.FC = () => {
     return `${m}:${s < 10 ? '0' : ''}${s}`;
   };
 
-  const recentlyPlayedTracks = history.length > 0 ? history.slice(0, 6) : FIXTURE_TRACKS.slice(0, 5);
+  const recentlyPlayedTracks = history.slice(0, 6);
 
   const aiCategories = [
     { id: 'all', label: 'All Curations', icon: Sparkles },

@@ -23,6 +23,11 @@ export function ensureRuntimeFilesExist() {
     { name: 'queue_events.json', defaultContent: {} },
     { name: 'soundclash_battles.json', defaultContent: {} },
     { name: 'soundclash_history.json', defaultContent: [] },
+    { name: 'rooms.json', defaultContent: [] },
+    { name: 'playlists.json', defaultContent: [] },
+    { name: 'liked_tracks.json', defaultContent: {} },
+    { name: 'listening_history.json', defaultContent: {} },
+    { name: 'room_messages.json', defaultContent: {} },
   ];
 
   for (const { name, defaultContent } of runtimeFiles) {

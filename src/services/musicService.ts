@@ -2,12 +2,11 @@ import type { Track, Playlist, LiveRoom, Artist } from '../types/music';
 import {
   FIXTURE_TRACKS,
   FIXTURE_POPULAR_MIXES,
-  FIXTURE_LIVE_ROOMS,
-  FIXTURE_PLAYLISTS,
   FIXTURE_ARTISTS,
   JAMENDO_CATALOG_TRACKS,
   PROVIDER_MUSIC_CATALOG,
 } from '../fixtures/musicFixtures';
+import { userService } from './userService';
 import { mapJamendoTrackToStudioTrack, type JamendoApiResponse, type JamendoTrackResponse } from '../types/jamendo';
 
 /**
@@ -393,21 +392,15 @@ class MusicService {
   }
 
   public async getLiveRooms(): Promise<LiveRoom[]> {
-    return FIXTURE_LIVE_ROOMS;
+    return userService.fetchLiveRoomsAsync();
   }
 
-  public async getUserPlaylists(): Promise<Playlist[]> {
-    return FIXTURE_PLAYLISTS;
+  public async getUserPlaylists(userId?: string): Promise<Playlist[]> {
+    return userService.fetchPlaylistsAsync(userId || '');
   }
 
-  public async getRecentlyPlayed(): Promise<Track[]> {
-    return [
-      FIXTURE_ARTISTS[0].popularTracks[0], // Woman by Doja Cat
-      FIXTURE_TRACKS[0], // Midnight Drive
-      FIXTURE_ARTISTS[0].popularTracks[1], // Kiss Me More
-      FIXTURE_TRACKS[2], // Neon Lights
-      FIXTURE_ARTISTS[1].popularTracks[0], // Blinding Lights
-    ];
+  public async getRecentlyPlayed(userId?: string): Promise<Track[]> {
+    return userService.getListeningHistory(userId || '');
   }
 
   /**
@@ -579,7 +572,7 @@ class MusicService {
         ],
         jamendoTracks: JAMENDO_CATALOG_TRACKS,
         playlists: FIXTURE_POPULAR_MIXES,
-        rooms: FIXTURE_LIVE_ROOMS,
+        rooms: userService.getLiveRooms(),
       };
     }
 
@@ -706,7 +699,8 @@ class MusicService {
     );
 
     // 5. Match Live Rooms
-    const matchedRooms = FIXTURE_LIVE_ROOMS.filter(
+    const liveRooms = userService.getLiveRooms();
+    const matchedRooms = liveRooms.filter(
       (r) =>
         r.name.toLowerCase().includes(q) ||
         r.genre.toLowerCase().includes(q) ||
@@ -725,7 +719,7 @@ class MusicService {
       tracks: combinedTracks.length > 0 ? combinedTracks : allFallbackTracks,
       jamendoTracks: uniqueJamendo.length > 0 ? uniqueJamendo : JAMENDO_CATALOG_TRACKS,
       playlists: matchedPlaylists.length > 0 ? matchedPlaylists : FIXTURE_POPULAR_MIXES,
-      rooms: matchedRooms.length > 0 ? matchedRooms : FIXTURE_LIVE_ROOMS,
+      rooms: matchedRooms,
     };
   }
 }

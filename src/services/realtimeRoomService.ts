@@ -2,7 +2,7 @@ import type { RealtimeChannel } from '@supabase/supabase-js';
 import type { LiveRoom, RoomParticipant, RoomRole, Track, ChatMessage, RoomPlaybackSync } from '../types/music';
 import type { RoomMoodState, SoundclashSession } from '../types/roomIntelligence';
 import { getSupabaseClient, isSupabaseConfigured } from './supabase';
-import { FIXTURE_LIVE_ROOMS } from '../fixtures/musicFixtures';
+import { chatService } from './chatService';
 
 export interface RoomServiceCallbacks {
   onParticipantsChange?: (participants: RoomParticipant[]) => void;
@@ -106,11 +106,14 @@ class RealtimeRoomService {
       }
     }
 
-    // Local / Fixture lookup fallback
-    const local = FIXTURE_LIVE_ROOMS.find(
-      (r) => r.code?.toUpperCase() === cleanCode || r.id.toLowerCase() === cleanCode.toLowerCase()
-    );
-    if (local) return local;
+    // Backend API check
+    try {
+      const res = await fetch(`/api/rooms/${encodeURIComponent(cleanCode)}`);
+      if (res.ok) {
+        const json = await res.json();
+        if (json.room) return json.room;
+      }
+    } catch {}
 
     try {
       const stored = localStorage.getItem('aidj_live_rooms');
@@ -513,15 +516,15 @@ class RealtimeRoomService {
   public sendChatMessage(text: string): ChatMessage | null {
     if (!this.currentRoom || !this.currentUserParticipant) return null;
 
-    const msg: ChatMessage = {
-      id: `msg_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-      userName: this.currentUserParticipant.name,
-      userEmail: this.currentUserParticipant.email,
-      userAvatar: this.currentUserParticipant.avatar,
-      message: text.trim(),
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      isAi: false,
-    };
+    const roomId = this.currentRoom.id;
+    const msg = chatService.sendMessage(
+      roomId,
+      text,
+      this.currentUserParticipant.name,
+      this.currentUserParticipant.avatar,
+      false,
+      this.currentUserParticipant.email
+    );
 
     this.processedMessageIds.add(msg.id);
     this.callbacks.onChatMessage?.(msg);
