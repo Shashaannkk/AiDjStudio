@@ -466,7 +466,7 @@ export function handleApiRequest(req, res) {
   if (urlStr.startsWith('/api/admin')) {
     // Check credentials: must be authenticated as admin or moderator
     const adminKey = req.headers['x-admin-key'] || '';
-    const masterKey = process.env.ADMIN_KEY;
+    const masterKey = process.env.ADMIN_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY;
     let isAuthorized = false;
 
     // Secure constant-time token comparison for master admin key

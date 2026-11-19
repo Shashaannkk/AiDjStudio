@@ -17,6 +17,8 @@ const envUrl = (
 const envKey = (
   (import.meta as any).env?.VITE_SUPABASE_ANON_KEY ||
   (import.meta as any).env?.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+  (import.meta as any).env?.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+  (import.meta as any).env?.SUPABASE_PUBLISHABLE_KEY ||
   (import.meta as any).env?.SUPABASE_ANON_KEY
 ) as string | undefined;
 
