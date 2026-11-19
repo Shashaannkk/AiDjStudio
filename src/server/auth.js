@@ -31,7 +31,7 @@ try {
         const idx = trimmed.indexOf('=');
         const key = trimmed.substring(0, idx).trim();
         const val = trimmed.substring(idx + 1).trim();
-        if (key && !process.env[key]) {
+        if (key && process.env[key] === undefined) {
           process.env[key] = val;
         }
       }
@@ -490,7 +490,7 @@ export function getAllUsers() {
 export function authenticateRequest(req) {
   let token = null;
 
-  const authHeader = req.headers['authorization'] || '';
+  const authHeader = req.headers['authorization'] || req.headers['Authorization'] || '';
   if (authHeader.startsWith('Bearer ')) {
     token = authHeader.substring(7).trim();
   }

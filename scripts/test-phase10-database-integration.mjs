@@ -44,9 +44,17 @@ runTest('PostgresAdapter initializes with default unconfigured detection', () =>
 });
 
 runTest('PostgresAdapter detects Supabase credentials when supplied', () => {
-  const origUrl = process.env.VITE_SUPABASE_URL;
-  const origKey = process.env.VITE_SUPABASE_ANON_KEY;
+  const origViteUrl = process.env.VITE_SUPABASE_URL;
+  const origViteKey = process.env.VITE_SUPABASE_ANON_KEY;
+  const origSupabaseUrl = process.env.SUPABASE_URL;
+  const origSupabaseKey = process.env.SUPABASE_ANON_KEY;
+  const origNextUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const origNextKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   try {
+    delete process.env.SUPABASE_URL;
+    delete process.env.SUPABASE_ANON_KEY;
+    delete process.env.NEXT_PUBLIC_SUPABASE_URL;
+    delete process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
     process.env.VITE_SUPABASE_URL = 'https://prodtest123.supabase.co';
     process.env.VITE_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.dummy_test_anon_key_for_adapter';
     
@@ -57,10 +65,18 @@ runTest('PostgresAdapter detects Supabase credentials when supplied', () => {
     assert.strictEqual(config.supabaseUrl, 'https://prodtest123.supabase.co');
     assert.strictEqual(Boolean(adapter.client), true);
   } finally {
-    if (origUrl !== undefined) process.env.VITE_SUPABASE_URL = origUrl;
+    if (origViteUrl !== undefined) process.env.VITE_SUPABASE_URL = origViteUrl;
     else delete process.env.VITE_SUPABASE_URL;
-    if (origKey !== undefined) process.env.VITE_SUPABASE_ANON_KEY = origKey;
+    if (origViteKey !== undefined) process.env.VITE_SUPABASE_ANON_KEY = origViteKey;
     else delete process.env.VITE_SUPABASE_ANON_KEY;
+    if (origSupabaseUrl !== undefined) process.env.SUPABASE_URL = origSupabaseUrl;
+    else delete process.env.SUPABASE_URL;
+    if (origSupabaseKey !== undefined) process.env.SUPABASE_ANON_KEY = origSupabaseKey;
+    else delete process.env.SUPABASE_ANON_KEY;
+    if (origNextUrl !== undefined) process.env.NEXT_PUBLIC_SUPABASE_URL = origNextUrl;
+    else delete process.env.NEXT_PUBLIC_SUPABASE_URL;
+    if (origNextKey !== undefined) process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = origNextKey;
+    else delete process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   }
 });
 

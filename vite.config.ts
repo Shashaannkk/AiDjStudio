@@ -1,8 +1,6 @@
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { defineConfig, type Plugin } from 'vite';
-// @ts-expect-error server.mjs is an ES module
-import { handleApiRequest } from './server.mjs';
 
 /**
  * Server API Plugin
@@ -12,13 +10,17 @@ import { handleApiRequest } from './server.mjs';
 function serverApiPlugin(): Plugin {
   return {
     name: 'server-api-middleware',
-    configureServer(server) {
+    async configureServer(server) {
+      // @ts-expect-error server.mjs is an ES module
+      const { handleApiRequest } = await import('./server.mjs');
       server.middlewares.use((req, res, next) => {
         if (handleApiRequest(req, res)) return;
         next();
       });
     },
-    configurePreviewServer(server) {
+    async configurePreviewServer(server) {
+      // @ts-expect-error server.mjs is an ES module
+      const { handleApiRequest } = await import('./server.mjs');
       server.middlewares.use((req, res, next) => {
         if (handleApiRequest(req, res)) return;
         next();

@@ -201,11 +201,11 @@ export function listTracks({ search, genre, bpmMin, bpmMax, includeInactive = fa
     result = result.filter((t) => t.genre && t.genre.toLowerCase().includes(g));
   }
 
-  if (bpmMin !== undefined && !isNaN(bpmMin)) {
+  if (bpmMin != null && bpmMin !== '' && !isNaN(bpmMin)) {
     result = result.filter((t) => t.bpm && t.bpm >= Number(bpmMin));
   }
 
-  if (bpmMax !== undefined && !isNaN(bpmMax)) {
+  if (bpmMax != null && bpmMax !== '' && !isNaN(bpmMax)) {
     result = result.filter((t) => t.bpm && t.bpm <= Number(bpmMax));
   }
 

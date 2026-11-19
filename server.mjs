@@ -1019,7 +1019,7 @@ export function handleApiRequest(req, res) {
       return true;
     }
     const likedTracks = getUserLikedTracks(auth.user.id);
-    sendJson(res, 200, { likedTracks });
+    sendJson(res, 200, { likedTracks, likes: likedTracks });
     return true;
   }
 
