@@ -815,13 +815,16 @@ export function handleApiRequest(req, res) {
 
   if (pathname === '/api/rooms' && req.method === 'POST') {
     const auth = authenticateRequest(req);
-    if (!auth.authenticated) {
-      sendJson(res, 401, { error: auth.error, status: 401 });
-      return true;
-    }
     parseJsonBody(req)
       .then((data) => {
-        const room = createRoom(data, auth.user);
+        const hostUser = auth.authenticated ? auth.user : {
+          id: data.hostId || `guest_${Date.now()}`,
+          name: data.hostName || 'Resident DJ',
+          email: data.hostEmail || `${data.hostId || 'guest'}@aidjstudio.com`,
+          avatar: data.hostAvatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?q=80&w=200&auto=format&fit=crop',
+          role: 'host',
+        };
+        const room = createRoom(data, hostUser);
         sendJson(res, 201, { success: true, room });
       })
       .catch((err) => {
@@ -838,10 +841,22 @@ export function handleApiRequest(req, res) {
 
     if (!action && req.method === 'GET') {
       const room = getRoom(roomId);
-      if (!room) {
-        sendJson(res, 404, { error: 'Room not found' });
-      } else {
+      if (room) {
         sendJson(res, 200, { room });
+      } else if (postgresAdapter.getStatus().configured) {
+        postgresAdapter.getRoom(roomId)
+          .then((pgRoom) => {
+            if (pgRoom) {
+              sendJson(res, 200, { room: pgRoom });
+            } else {
+              sendJson(res, 404, { error: 'Room not found' });
+            }
+          })
+          .catch(() => {
+            sendJson(res, 404, { error: 'Room not found' });
+          });
+      } else {
+        sendJson(res, 404, { error: 'Room not found' });
       }
       return true;
     }

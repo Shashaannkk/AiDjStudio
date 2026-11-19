@@ -637,6 +637,19 @@ export class PostgresAdapter {
     const roomId = toValidUuid(room.id);
     const hostId = toValidUuid(hostUser?.id || room.hostId || '00000000-0000-0000-0000-000000000001');
 
+    // Ensure host profile exists in profiles table before inserting room to satisfy foreign key constraint
+    try {
+      await this.client.from('profiles').upsert({
+        id: hostId,
+        email: (hostUser?.email || room.hostEmail || `user_${hostId.slice(0, 8)}@aidjstudio.com`).toLowerCase().trim(),
+        display_name: hostUser?.name || room.hostName || 'Resident DJ',
+        avatar_url: hostUser?.avatar || room.hostAvatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?q=80&w=200&auto=format&fit=crop',
+        role: 'host',
+      }, { onConflict: 'id' });
+    } catch (err) {
+      console.warn('[POSTGRES SYNC] Notice upserting host profile:', err.message);
+    }
+
     const { data, error } = await this.client
       .from('rooms')
       .insert({
@@ -654,14 +667,24 @@ export class PostgresAdapter {
       .select()
       .single();
 
-    if (error) throw new Error(`Database error creating room: ${error.message}`);
+    if (error) {
+      if (error.code === '23505') {
+        const { data: existing } = await this.client.from('rooms').select().eq('code', (room.code || '').toUpperCase()).single();
+        if (existing) return existing;
+      }
+      throw new Error(`Database error creating room: ${error.message}`);
+    }
 
     // Insert host as room member
-    await this.client.from('room_members').upsert({
-      room_id: roomId,
-      user_id: hostId,
-      role: 'host',
-    }, { onConflict: 'room_id,user_id' });
+    try {
+      await this.client.from('room_members').upsert({
+        room_id: roomId,
+        user_id: hostId,
+        role: 'host',
+      }, { onConflict: 'room_id,user_id' });
+    } catch {
+      // Non-blocking member presence sync
+    }
 
     return {
       ...room,

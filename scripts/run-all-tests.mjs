@@ -23,6 +23,7 @@ const suites = [
   { name: 'Phase 16: Render Production Startup & Persistence Verification', cmd: 'node scripts/test-render-startup.mjs' },
   { name: 'Phase 17: Pre-Publish 26-Endpoint End-to-End API Verification Suite', cmd: 'node scripts/test-api-suite.mjs' },
   { name: 'Phase 18: Party Room Live Chat Real-Time Sync, Deduplication & Google Auth', cmd: 'node scripts/test-chat-sync-and-dedup.mjs' },
+  { name: 'Phase 19: Collaborative Party Room Connection, Code Lookup & Capacity Sync', cmd: 'node scripts/test-party-room-join.mjs' },
 ];
 
 console.log('========================================================================');

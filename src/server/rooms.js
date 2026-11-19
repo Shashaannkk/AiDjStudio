@@ -64,10 +64,14 @@ export function joinRoomCapacity(roomId, userId) {
     throw new Error('Room ID and User ID are required to join room');
   }
 
-  let roomParticipants = participantsByRoom.get(roomId);
+  loadRooms();
+  const room = getRoom(roomId);
+  const canonicalId = room ? room.id : roomId;
+
+  let roomParticipants = participantsByRoom.get(canonicalId);
   if (!roomParticipants) {
     roomParticipants = new Set();
-    participantsByRoom.set(roomId, roomParticipants);
+    participantsByRoom.set(canonicalId, roomParticipants);
   }
 
   // If user is already active in this room, refresh presence safely
@@ -99,7 +103,11 @@ export function joinRoomCapacity(roomId, userId) {
 export function leaveRoomCapacity(roomId, userId) {
   if (!roomId || !userId) return { success: true };
 
-  const roomParticipants = participantsByRoom.get(roomId);
+  loadRooms();
+  const room = getRoom(roomId);
+  const canonicalId = room ? room.id : roomId;
+
+  const roomParticipants = participantsByRoom.get(canonicalId);
   if (roomParticipants) {
     roomParticipants.delete(userId);
     return {
@@ -113,10 +121,14 @@ export function leaveRoomCapacity(roomId, userId) {
 }
 
 export function getRoomCapacity(roomId) {
-  const roomParticipants = participantsByRoom.get(roomId);
+  loadRooms();
+  const room = getRoom(roomId);
+  const canonicalId = room ? room.id : roomId;
+
+  const roomParticipants = participantsByRoom.get(canonicalId);
   const count = roomParticipants ? roomParticipants.size : 0;
   return {
-    roomId,
+    roomId: canonicalId,
     currentCount: count,
     maxCapacity: MAX_CAPACITY,
     isFull: count >= MAX_CAPACITY,
@@ -165,9 +177,10 @@ export function createRoom(data, hostUser) {
 
   const code = (data.code || ('DJ' + Math.random().toString(36).substring(2, 6).toUpperCase())).trim().toUpperCase();
 
-  // Check code uniqueness among active rooms
-  if (roomsCache.some((r) => r.isLive && r.code === code)) {
-    throw new Error(`Room code ${code} is already in use`);
+  // If a live room already exists with this code or ID, return it idempotently
+  const existing = roomsCache.find((r) => r.isLive && (r.code === code || (data.id && r.id === data.id)));
+  if (existing) {
+    return existing;
   }
 
   const roomId = data.id || `room_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;

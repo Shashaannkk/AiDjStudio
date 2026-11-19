@@ -59,9 +59,28 @@ class RealtimeRoomService {
    * Find a room by code (queries Supabase rooms or fallback fixtures)
    */
   public async findRoomByCode(code: string): Promise<LiveRoom | null> {
-    const cleanCode = code.trim().toUpperCase();
-    const supabase = getSupabaseClient();
+    if (!code) return null;
+    let cleanCode = code.trim();
+    if (cleanCode.includes('room=')) {
+      const match = cleanCode.match(/[?&]room=([a-zA-Z0-9_-]+)/i);
+      if (match) cleanCode = match[1];
+    }
+    cleanCode = cleanCode.replace(/[^a-zA-Z0-9_-]/g, '').toUpperCase();
+    if (!cleanCode) return null;
 
+    // 1. Backend API authoritative lookup (sub-millisecond instant lookup for shared rooms)
+    try {
+      const res = await fetch(`/api/rooms/${encodeURIComponent(cleanCode)}`);
+      if (res.ok) {
+        const json = await res.json();
+        if (json && json.room) return json.room;
+      }
+    } catch (e) {
+      console.warn('Backend room lookup notice:', e);
+    }
+
+    // 2. Supabase rooms table check
+    const supabase = getSupabaseClient();
     if (supabase && isSupabaseConfigured()) {
       try {
         const { data, error } = await supabase
@@ -100,21 +119,41 @@ class RealtimeRoomService {
             isPlaying: data.is_playing || false,
             currentPosition: data.current_position_sec || 0,
           };
+        } else if (error) {
+          // Fallback to select * if foreign key profile join fails
+          const { data: plainData } = await supabase
+            .from('rooms')
+            .select('*')
+            .eq('code', cleanCode)
+            .eq('is_live', true)
+            .single();
+
+          if (plainData) {
+            return {
+              id: plainData.id,
+              code: plainData.code,
+              name: plainData.name,
+              hostId: plainData.host_id,
+              hostName: 'Resident DJ',
+              hostAvatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?q=80&w=200&auto=format&fit=crop',
+              cover: plainData.cover_url || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?q=80&w=800&auto=format&fit=crop',
+              genre: plainData.genre || 'Open Format',
+              listenerCount: 1,
+              isLive: plainData.is_live,
+              tags: [plainData.genre, 'Live Room', 'Supabase Realtime'],
+              participants: [],
+              queue: [],
+              isPlaying: plainData.is_playing || false,
+              currentPosition: plainData.current_position_sec || 0,
+            };
+          }
         }
       } catch (err) {
         console.warn('Notice querying Supabase rooms by code, checking local stores:', err);
       }
     }
 
-    // Backend API check
-    try {
-      const res = await fetch(`/api/rooms/${encodeURIComponent(cleanCode)}`);
-      if (res.ok) {
-        const json = await res.json();
-        if (json.room) return json.room;
-      }
-    } catch {}
-
+    // 3. Check localStorage for same-browser tabs
     try {
       const stored = localStorage.getItem('aidj_live_rooms');
       if (stored) {

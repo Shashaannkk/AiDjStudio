@@ -872,56 +872,68 @@ class UserService {
   /**
    * Add a new Live Room and persist to Backend rooms API and Supabase
    */
-  public addLiveRoom(newRoom: LiveRoom, hostId?: string): LiveRoom[] {
+  public async addLiveRoom(newRoom: LiveRoom, hostId?: string): Promise<LiveRoom[]> {
     const current = this.getLiveRooms();
     const updated = [newRoom, ...current.filter((r) => r.id !== newRoom.id)];
     this.saveLiveRooms(updated);
 
-    // Persist to backend
-    const token = this.getAuthToken();
-    if (token) {
-      fetch('/api/rooms', {
+    // Persist to backend rooms API (reliable persistence for all guests and authenticated DJs)
+    try {
+      const token = this.getAuthToken();
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      const res = await fetch('/api/rooms', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
+        headers,
         body: JSON.stringify(newRoom),
-      }).catch((err) => console.warn('Notice saving room to backend:', err));
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.room) {
+          const finalizedRoom = { ...newRoom, ...data.room };
+          const finalUpdated = [finalizedRoom, ...current.filter((r) => r.id !== finalizedRoom.id && r.id !== newRoom.id)];
+          this.saveLiveRooms(finalUpdated);
+        }
+      }
+    } catch (err) {
+      console.warn('Notice saving room to backend:', err);
     }
 
     // Persist to Supabase if configured and valid UUID hostId
+    const isUuid = hostId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(hostId);
     const supabase = getSupabaseClient();
-    if (supabase && hostId && isSupabaseConfigured()) {
-      (async () => {
-        try {
-          const { data: roomData, error } = await supabase
-            .from('rooms')
-            .insert({
-              code: newRoom.code || ('DJ' + Math.random().toString(36).substring(2, 6).toUpperCase()),
-              host_id: hostId,
-              name: newRoom.name,
-              genre: newRoom.genre,
-              cover_url: newRoom.cover,
-              is_live: true,
-            })
-            .select()
-            .single();
+    if (supabase && isUuid && isSupabaseConfigured()) {
+      try {
+        const { data: roomData, error } = await supabase
+          .from('rooms')
+          .insert({
+            code: newRoom.code || ('DJ' + Math.random().toString(36).substring(2, 6).toUpperCase()),
+            host_id: hostId,
+            name: newRoom.name,
+            genre: newRoom.genre,
+            cover_url: newRoom.cover,
+            is_live: true,
+          })
+          .select()
+          .single();
 
-          if (!error && roomData) {
-            await supabase.from('room_members').insert({
-              room_id: roomData.id,
-              user_id: hostId,
-              role: 'host',
-            });
-          }
-        } catch (err) {
-          console.warn('Notice saving room to Supabase:', err);
+        if (!error && roomData) {
+          await supabase.from('room_members').insert({
+            room_id: roomData.id,
+            user_id: hostId,
+            role: 'host',
+          });
         }
-      })();
+      } catch (err) {
+        console.warn('Notice saving room to Supabase:', err);
+      }
     }
 
-    return updated;
+    return this.getLiveRooms();
   }
 
   /**

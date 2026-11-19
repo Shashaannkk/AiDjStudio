@@ -1192,9 +1192,16 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
     },
 
     joinRoomByCode: async (code: string) => {
-      const targetRoom = await realtimeRoomService.findRoomByCode(code);
+      let cleanCode = code ? code.trim() : '';
+      if (cleanCode.includes('room=')) {
+        const match = cleanCode.match(/[?&]room=([a-zA-Z0-9_-]+)/i);
+        if (match) cleanCode = match[1];
+      }
+      cleanCode = cleanCode.replace(/[^a-zA-Z0-9_-]/g, '').toUpperCase();
+
+      const targetRoom = await realtimeRoomService.findRoomByCode(cleanCode);
       if (!targetRoom) {
-        return { success: false, error: `Room with code "${code.toUpperCase()}" not found or inactive.` };
+        return { success: false, error: `Room with code "${cleanCode || code.toUpperCase()}" not found or inactive.` };
       }
       try {
         await get().joinRoom(targetRoom);
@@ -1254,16 +1261,17 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
         isPlaying: state.isPlaying,
       };
 
-      const updatedRooms = userService.addLiveRoom(newRoom, hostUser?.id);
+      const updatedRooms = await userService.addLiveRoom(newRoom, hostUser?.id);
+      const active = (updatedRooms && Array.isArray(updatedRooms) ? updatedRooms.find((r) => r.id === newRoom.id || r.code === newRoom.code) : null) || newRoom;
       set({
-        liveRooms: updatedRooms,
-        activeRoom: newRoom,
+        liveRooms: updatedRooms || [active],
+        activeRoom: active,
         roomRole: 'host',
-        roomQueue: newRoom.queue,
+        roomQueue: active.queue,
       });
 
-      await get().joinRoom(newRoom);
-      return newRoom;
+      await get().joinRoom(active);
+      return active;
     },
 
     addTrackToRoomQueue: (track: Track) => {
