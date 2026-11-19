@@ -1,0 +1,18 @@
+{
+  "name": "AI DJ Studio — Listen Together. Mix Smarter.",
+  "short_name": "AI DJ Studio",
+  "description": "Collaborative AI-powered music streaming, live DJ rooms, harmonic mixing, and real-time playback synchronization.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#121212",
+  "theme_color": "#121212",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
