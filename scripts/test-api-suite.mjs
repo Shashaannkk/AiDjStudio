@@ -178,6 +178,23 @@ await testEndpoint('Auth', 'POST /api/auth/refresh issues new session tokens', a
   assert.strictEqual(Boolean(res.body.accessToken), true);
 });
 
+await testEndpoint('Auth', 'POST /api/auth/google provisions & logs in Google OAuth user with JWT tokens', async () => {
+  const googleEmail = `google_dj_${Date.now()}@gmail.com`;
+  const res = await makeMockRequest({
+    url: '/api/auth/google',
+    method: 'POST',
+    body: {
+      email: googleEmail,
+      name: 'Google DJ Resident',
+      googleId: 'g_sub_1092837465',
+    },
+  });
+  assert.strictEqual(res.status, 200);
+  assert.strictEqual(res.body.user.email, googleEmail);
+  assert.strictEqual(Boolean(res.body.accessToken), true);
+  assert.strictEqual(Boolean(res.body.refreshToken), true);
+});
+
 // ---------------------------------------------------------------------------
 // 3. COLLABORATIVE ROOMS & CAPACITY GATING APIS
 // ---------------------------------------------------------------------------
@@ -280,6 +297,22 @@ await testEndpoint('Chat', 'POST /api/chat broadcasts message across listeners',
   });
   assert.strictEqual(res.status, 200);
   assert.strictEqual(res.body.success, true);
+});
+
+await testEndpoint('Chat', 'POST /api/chat enforces JWT authentication (SEC-API-01 rejects 401 unauthenticated)', async () => {
+  const res = await makeMockRequest({
+    url: '/api/chat',
+    method: 'POST',
+    body: {
+      roomId: createdRoomId,
+      message: {
+        id: `msg_unauth_${Date.now()}`,
+        message: 'Unauthenticated injection attempt',
+      },
+    },
+  });
+  assert.strictEqual(res.status, 401);
+  assert.strictEqual(Boolean(res.body.error), true);
 });
 
 await testEndpoint('Chat', 'GET /api/chat/messages fetches isolated room chat history', async () => {

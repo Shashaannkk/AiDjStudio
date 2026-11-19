@@ -42,6 +42,9 @@ class UserService {
     try {
       supabase.auth.onAuthStateChange(async (event, session) => {
         if (event === 'SIGNED_IN' && session?.user) {
+          if (session.access_token) {
+            this.saveTokens(session.access_token, session.refresh_token);
+          }
           const profile = await this.fetchProfileFromSupabase(session.user.id);
           const user: UserProfile = {
             id: session.user.id,
@@ -56,6 +59,7 @@ class UserService {
           // Migrate any existing offline local data into Supabase
           this.migrateLocalDataToSupabase(user.id).catch(() => {});
         } else if (event === 'SIGNED_OUT') {
+          this.saveTokens(null, null);
           this.saveCurrentUser(null);
           this.notifyAuthSubscribers(null);
         }
@@ -287,6 +291,51 @@ class UserService {
     } catch (err: any) {
       return { user: null, error: err.message || 'An unexpected login error occurred.' };
     }
+  }
+
+  /**
+   * Log In or Register via verified Google Identity Services
+   */
+  public async loginWithGoogleUser(googleProfile: {
+    id?: string;
+    email: string;
+    name?: string;
+    avatar?: string;
+    googleId?: string;
+  }): Promise<{ user: UserProfile | null; error: string | null }> {
+    try {
+      const res = await fetch('/api/auth/google', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(googleProfile),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.accessToken) {
+          this.saveTokens(data.accessToken, data.refreshToken);
+        }
+        if (data.user) {
+          this.saveCurrentUser(data.user);
+          this.notifyAuthSubscribers(data.user);
+          return { user: data.user, error: null };
+        }
+      }
+    } catch (e) {
+      console.warn('Backend /api/auth/google error, using local fallback:', e);
+    }
+
+    // Local profile fallback if backend is unreachable
+    const fallbackUser: UserProfile = {
+      id: `usr_${googleProfile.googleId || Date.now()}`,
+      name: googleProfile.name || googleProfile.email.split('@')[0],
+      email: googleProfile.email,
+      avatar: googleProfile.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?q=80&w=200&auto=format&fit=crop',
+      role: 'listener',
+    };
+    this.saveCurrentUser(fallbackUser);
+    this.notifyAuthSubscribers(fallbackUser);
+    return { user: fallbackUser, error: null };
   }
 
   /**

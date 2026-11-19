@@ -164,7 +164,8 @@ class RealtimeRoomService {
 
     this.currentRoom = room;
     this.currentUserParticipant = participant;
-    const channelName = `room:${room.code || room.id}`;
+    const channelKey = String(room.code || room.id).trim().toLowerCase();
+    const channelName = `room:${channelKey}`;
     const supabase = getSupabaseClient();
 
     if (supabase && isSupabaseConfigured()) {
@@ -527,7 +528,8 @@ class RealtimeRoomService {
     );
 
     this.processedMessageIds.add(msg.id);
-    this.callbacks.onChatMessage?.(msg);
+    // Note: Do not call this.callbacks.onChatMessage(msg) here because chatService.sendMessage
+    // already dispatched the message to the store listeners in the local tab.
 
     if (this.activeChannel) {
       this.activeChannel.send({

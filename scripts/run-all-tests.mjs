@@ -21,7 +21,8 @@ const suites = [
   { name: 'Phase 14: Full Application Security & Penetration Hardening', cmd: 'node scripts/test-security-remediations.mjs' },
   { name: 'Phase 15: Real Multi-User Functionality & Demo Removal Integration', cmd: 'node scripts/test-real-functionality-e2e.mjs' },
   { name: 'Phase 16: Render Production Startup & Persistence Verification', cmd: 'node scripts/test-render-startup.mjs' },
-  { name: 'Phase 17: Pre-Publish 24-Endpoint End-to-End API Verification Suite', cmd: 'node scripts/test-api-suite.mjs' },
+  { name: 'Phase 17: Pre-Publish 26-Endpoint End-to-End API Verification Suite', cmd: 'node scripts/test-api-suite.mjs' },
+  { name: 'Phase 18: Party Room Live Chat Real-Time Sync, Deduplication & Google Auth', cmd: 'node scripts/test-chat-sync-and-dedup.mjs' },
 ];
 
 console.log('========================================================================');

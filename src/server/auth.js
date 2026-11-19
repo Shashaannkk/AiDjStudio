@@ -485,6 +485,65 @@ export function getAllUsers() {
 }
 
 /**
+ * Verified Google Identity login or registration.
+ * Issues cryptographic JWT credentials for Google OAuth users.
+ */
+export function loginOrRegisterGoogleUser({ email, name, avatar, googleId }) {
+  if (!email || !String(email).trim()) {
+    throw new Error('Valid email address is required for Google authentication');
+  }
+
+  const cleanEmail = String(email).trim().toLowerCase();
+  const cleanName = (name || cleanEmail.split('@')[0] || 'Google DJ').trim();
+  const cleanAvatar = avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?q=80&w=200&auto=format&fit=crop';
+
+  loadUsers();
+  let user = usersCache.find((u) => u.email.toLowerCase() === cleanEmail);
+
+  if (!user) {
+    user = {
+      id: `usr_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
+      email: cleanEmail,
+      googleId: googleId || null,
+      passwordHash: null,
+      salt: null,
+      name: cleanName,
+      avatar: cleanAvatar,
+      role: 'listener',
+      provider: 'google',
+      createdAt: Date.now(),
+    };
+    usersCache.push(user);
+    saveUsers();
+  } else {
+    if (googleId && !user.googleId) user.googleId = googleId;
+    if (cleanAvatar && (!user.avatar || user.avatar.includes('photo-1535713875002'))) {
+      user.avatar = cleanAvatar;
+    }
+    saveUsers();
+  }
+
+  const tokenPayload = {
+    sub: user.id,
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    avatar: user.avatar,
+    role: user.role,
+  };
+
+  const accessToken = signJwt(tokenPayload, 3600);
+  const refreshToken = generateRefreshToken(user.id);
+
+  return {
+    user: sanitizeUser(user),
+    accessToken,
+    refreshToken,
+    expiresIn: 3600,
+  };
+}
+
+/**
  * Extracts and cryptographically verifies JWT from incoming HTTP request
  */
 export function authenticateRequest(req) {

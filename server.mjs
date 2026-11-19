@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import {
   registerUser,
   loginUser,
+  loginOrRegisterGoogleUser,
   refreshSession,
   revokeRefreshToken,
   authenticateRequest,
@@ -286,6 +287,18 @@ export function handleApiRequest(req, res) {
       })
       .catch((err) => {
         sendJson(res, 401, { error: err.message, status: 401 });
+      });
+    return true;
+  }
+
+  if (urlStr === '/api/auth/google' && req.method === 'POST') {
+    parseJsonBody(req)
+      .then((data) => {
+        const result = loginOrRegisterGoogleUser(data || {});
+        sendJson(res, 200, result);
+      })
+      .catch((err) => {
+        sendJson(res, 400, { error: err.message, status: 400 });
       });
     return true;
   }

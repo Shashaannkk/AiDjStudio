@@ -201,10 +201,13 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
   // Subscribe to real-time chat broadcast channel across tabs/windows
   chatService.subscribeToMessages((msg, roomId) => {
     const { activeRoom } = get();
-    if (!activeRoom || activeRoom.id === roomId) {
-      set((state) => ({
-        roomMessages: [...state.roomMessages, msg],
-      }));
+    if (!activeRoom || activeRoom.id === roomId || activeRoom.code === roomId) {
+      set((state) => {
+        if (state.roomMessages.some((m) => m.id === msg.id)) return state;
+        return {
+          roomMessages: [...state.roomMessages, msg],
+        };
+      });
     }
   });
 
@@ -295,9 +298,12 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
       set({ queueVotes: votes, roomQueue: sorted });
     },
     onChatMessage: (msg) => {
-      set((state) => ({
-        roomMessages: [...state.roomMessages, msg],
-      }));
+      set((state) => {
+        if (state.roomMessages.some((m) => m.id === msg.id)) return state;
+        return {
+          roomMessages: [...state.roomMessages, msg],
+        };
+      });
     },
     onRoomClosed: () => {
       get().leaveRoom();

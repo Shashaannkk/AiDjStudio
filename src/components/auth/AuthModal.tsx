@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { usePlayerStore } from '../../store/usePlayerStore';
 import { userService } from '../../services/userService';
+import { getSupabaseClient, isSupabaseConfigured } from '../../services/supabase';
 import { DISC_ALBUM_COVERS } from '../../fixtures/musicFixtures';
 import { Logo } from '../common/Logo';
 
@@ -67,7 +68,7 @@ export const AuthModal: React.FC = () => {
       try {
         google.accounts.id.initialize({
           client_id: clientId,
-          callback: (response: any) => {
+          callback: async (response: any) => {
             if (response.credential) {
               try {
                 const base64Url = response.credential.split('.')[1];
@@ -80,14 +81,19 @@ export const AuthModal: React.FC = () => {
                 );
                 const payload = JSON.parse(jsonPayload);
 
-                login({
+                const { user: authedUser } = await userService.loginWithGoogleUser({
                   id: `google_${payload.sub || Date.now()}`,
-                  name: payload.name || payload.given_name || 'Google User',
                   email: payload.email || 'user@gmail.com',
+                  name: payload.name || payload.given_name || 'Google User',
                   avatar:
                     payload.picture ||
                     'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?q=80&w=200&auto=format&fit=crop',
+                  googleId: payload.sub,
                 });
+
+                if (authedUser) {
+                  login(authedUser);
+                }
                 closeAuthModal();
               } catch (e) {
                 console.warn('Google JWT parse error:', e);
@@ -112,12 +118,13 @@ export const AuthModal: React.FC = () => {
     setShowConfig(false);
   };
 
-  const handleGoogleOAuth = () => {
+  const handleGoogleOAuth = async () => {
     setIsGoogleLoading(true);
     setGoogleAuthNotice(null);
 
     const activeClientId = customClientId || userService.getGoogleClientId();
 
+    // 1. If Google Identity Client ID is configured, use official Google Identity Services
     if (typeof google !== 'undefined' && google.accounts?.oauth2 && activeClientId) {
       try {
         const tokenClient = google.accounts.oauth2.initTokenClient({
@@ -136,14 +143,17 @@ export const AuthModal: React.FC = () => {
                 });
                 if (userInfoRes.ok) {
                   const googleUser = await userInfoRes.json();
-                  login({
-                    id: `google_${googleUser.sub}`,
-                    name: googleUser.name,
+                  const { user: authedUser } = await userService.loginWithGoogleUser({
                     email: googleUser.email,
+                    name: googleUser.name,
                     avatar:
                       googleUser.picture ||
                       'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?q=80&w=200&auto=format&fit=crop',
+                    googleId: googleUser.sub,
                   });
+                  if (authedUser) {
+                    login(authedUser);
+                  }
                   closeAuthModal();
                   return;
                 }
@@ -161,9 +171,30 @@ export const AuthModal: React.FC = () => {
       }
     }
 
-    // If no Google Client ID is configured yet, guide user to email login or configure client ID
+    // 2. If Supabase is configured, use Supabase OAuth Provider
+    const supabase = getSupabaseClient();
+    if (supabase && isSupabaseConfigured()) {
+      try {
+        const { error } = await supabase.auth.signInWithOAuth({
+          provider: 'google',
+          options: {
+            redirectTo: window.location.origin,
+          },
+        });
+        if (error) {
+          setGoogleAuthNotice(`Supabase Google Auth: ${error.message}`);
+          setIsGoogleLoading(false);
+          return;
+        }
+        return;
+      } catch (err: any) {
+        console.warn('Supabase OAuth error:', err);
+      }
+    }
+
+    // 3. Helpful guidance when Google OAuth is not yet wired up
     setGoogleAuthNotice(
-      'Google Client ID not configured. Please use Email/Password authentication or configure your Google Client ID via the settings icon.'
+      'To enable Google Sign-In, enter your Google OAuth Client ID in Settings (click the settings gear icon) or enable Google in your Supabase Auth Providers. You can also sign in instantly with Email & Password below!'
     );
     setIsGoogleLoading(false);
   };
