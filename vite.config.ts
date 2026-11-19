@@ -13,16 +13,24 @@ function serverApiPlugin(): Plugin {
     async configureServer(server) {
       // @ts-expect-error server.mjs is an ES module
       const { handleApiRequest } = await import('./server.mjs');
-      server.middlewares.use((req, res, next) => {
-        if (handleApiRequest(req, res)) return;
+      server.middlewares.use(async (req, res, next) => {
+        try {
+          if (await handleApiRequest(req, res)) return;
+        } catch (e) {
+          console.error('[API MIDDLEWARE ERROR]', e);
+        }
         next();
       });
     },
     async configurePreviewServer(server) {
       // @ts-expect-error server.mjs is an ES module
       const { handleApiRequest } = await import('./server.mjs');
-      server.middlewares.use((req, res, next) => {
-        if (handleApiRequest(req, res)) return;
+      server.middlewares.use(async (req, res, next) => {
+        try {
+          if (await handleApiRequest(req, res)) return;
+        } catch (e) {
+          console.error('[API MIDDLEWARE ERROR]', e);
+        }
         next();
       });
     },

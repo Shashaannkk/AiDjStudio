@@ -239,6 +239,19 @@ export function createRoom(data, hostUser) {
   return newRoom;
 }
 
+export async function createRoomAsync(data, hostUser) {
+  const room = createRoom(data, hostUser);
+  if (postgresAdapter.getStatus().configured) {
+    try {
+      const pgRoom = await postgresAdapter.createRoom(room, hostUser);
+      if (pgRoom) return { ...room, ...pgRoom };
+    } catch (err) {
+      console.warn('[POSTGRES SYNC] Room create async notice:', err.message);
+    }
+  }
+  return room;
+}
+
 export function updateRoom(roomId, updates, actingUser = null) {
   loadRooms();
   const index = roomsCache.findIndex((r) => r.id === roomId || r.code === roomId);

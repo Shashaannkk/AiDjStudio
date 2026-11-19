@@ -16,8 +16,8 @@ export default async function handler(req, res) {
       await postgresAdapter.ping().catch(() => {});
     }
 
-    const handled = handleApiRequest(req, res);
-    if (!handled) {
+    const handled = await handleApiRequest(req, res);
+    if (!handled && !res.headersSent && !res.writableEnded) {
       res.statusCode = 404;
       res.setHeader('Content-Type', 'application/json');
       res.end(JSON.stringify({ error: 'API route not found', status: 404 }));

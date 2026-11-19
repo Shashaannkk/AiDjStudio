@@ -596,6 +596,7 @@ export class PostgresAdapter {
   }
 
   async getRoom(idOrCode) {
+    this.publicInit();
     if (!this.client) return null;
     const clean = String(idOrCode || '').trim();
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(clean);
@@ -633,6 +634,7 @@ export class PostgresAdapter {
   }
 
   async createRoom(room, hostUser = null) {
+    this.publicInit();
     if (!this.client) return null;
     const roomId = toValidUuid(room.id);
     const hostId = toValidUuid(hostUser?.id || room.hostId || '00000000-0000-0000-0000-000000000001');

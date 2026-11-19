@@ -55,7 +55,7 @@ import {
   getRoomCapacity,
   listRooms,
   getRoom,
-  createRoom,
+  createRoomAsync,
   updateRoom,
   joinRoom,
   leaveRoom,
@@ -193,7 +193,7 @@ function parseJsonBody(req) {
   });
 }
 
-export function handleApiRequest(req, res) {
+export async function handleApiRequest(req, res) {
   const urlStr = req.url || '';
   const pathname = urlStr.split('?')[0];
 
@@ -815,21 +815,20 @@ export function handleApiRequest(req, res) {
 
   if (pathname === '/api/rooms' && req.method === 'POST') {
     const auth = authenticateRequest(req);
-    parseJsonBody(req)
-      .then((data) => {
-        const hostUser = auth.authenticated ? auth.user : {
-          id: data.hostId || `guest_${Date.now()}`,
-          name: data.hostName || 'Resident DJ',
-          email: data.hostEmail || `${data.hostId || 'guest'}@aidjstudio.com`,
-          avatar: data.hostAvatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?q=80&w=200&auto=format&fit=crop',
-          role: 'host',
-        };
-        const room = createRoom(data, hostUser);
-        sendJson(res, 201, { success: true, room });
-      })
-      .catch((err) => {
-        sendJson(res, 400, { error: err.message });
-      });
+    try {
+      const data = await parseJsonBody(req);
+      const hostUser = auth.authenticated ? auth.user : {
+        id: data.hostId || `guest_${Date.now()}`,
+        name: data.hostName || 'Resident DJ',
+        email: data.hostEmail || `${data.hostId || 'guest'}@aidjstudio.com`,
+        avatar: data.hostAvatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?q=80&w=200&auto=format&fit=crop',
+        role: 'host',
+      };
+      const room = await createRoomAsync(data, hostUser);
+      sendJson(res, 201, { success: true, room });
+    } catch (err) {
+      sendJson(res, 400, { error: err.message });
+    }
     return true;
   }
 
@@ -840,21 +839,16 @@ export function handleApiRequest(req, res) {
     const action = segments[1];
 
     if (!action && req.method === 'GET') {
-      const room = getRoom(roomId);
+      let room = getRoom(roomId);
+      if (!room && postgresAdapter.getStatus().configured) {
+        try {
+          room = await postgresAdapter.getRoom(roomId);
+        } catch (err) {
+          console.warn('Notice querying postgres for room:', err.message);
+        }
+      }
       if (room) {
         sendJson(res, 200, { room });
-      } else if (postgresAdapter.getStatus().configured) {
-        postgresAdapter.getRoom(roomId)
-          .then((pgRoom) => {
-            if (pgRoom) {
-              sendJson(res, 200, { room: pgRoom });
-            } else {
-              sendJson(res, 404, { error: 'Room not found' });
-            }
-          })
-          .catch(() => {
-            sendJson(res, 404, { error: 'Room not found' });
-          });
       } else {
         sendJson(res, 404, { error: 'Room not found' });
       }
@@ -926,26 +920,24 @@ export function handleApiRequest(req, res) {
   }
 
   if (pathname === '/api/rooms/join' && req.method === 'POST') {
-    parseJsonBody(req)
-      .then((data) => {
-        const result = joinRoomCapacity(data.roomId, data.userId);
-        sendJson(res, 200, result);
-      })
-      .catch((err) => {
-        sendJson(res, err.status || 409, { error: err.message, code: err.code || 'JOIN_FAILED' });
-      });
+    try {
+      const data = await parseJsonBody(req);
+      const result = joinRoomCapacity(data.roomId, data.userId);
+      sendJson(res, 200, result);
+    } catch (err) {
+      sendJson(res, err.status || 409, { error: err.message, code: err.code || 'JOIN_FAILED' });
+    }
     return true;
   }
 
   if (pathname === '/api/rooms/leave' && req.method === 'POST') {
-    parseJsonBody(req)
-      .then((data) => {
-        const result = leaveRoomCapacity(data.roomId, data.userId);
-        sendJson(res, 200, result);
-      })
-      .catch(() => {
-        sendJson(res, 200, { success: true });
-      });
+    try {
+      const data = await parseJsonBody(req);
+      const result = leaveRoomCapacity(data.roomId, data.userId);
+      sendJson(res, 200, result);
+    } catch {
+      sendJson(res, 200, { success: true });
+    }
     return true;
   }
 
