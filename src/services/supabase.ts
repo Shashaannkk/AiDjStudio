@@ -8,8 +8,17 @@ import type { Database } from '../types/database';
  * Falls back gracefully to local storage mock mode when credentials are not configured yet.
  */
 
-const envUrl = (import.meta as any).env?.VITE_SUPABASE_URL as string | undefined;
-const envKey = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY as string | undefined;
+const envUrl = (
+  (import.meta as any).env?.VITE_SUPABASE_URL ||
+  (import.meta as any).env?.NEXT_PUBLIC_SUPABASE_URL ||
+  (import.meta as any).env?.SUPABASE_URL
+) as string | undefined;
+
+const envKey = (
+  (import.meta as any).env?.VITE_SUPABASE_ANON_KEY ||
+  (import.meta as any).env?.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+  (import.meta as any).env?.SUPABASE_ANON_KEY
+) as string | undefined;
 
 // Fallback to locally stored custom configuration if set via UI settings
 const storedUrl = typeof window !== 'undefined' ? localStorage.getItem('aidj_custom_supabase_url') || '' : '';

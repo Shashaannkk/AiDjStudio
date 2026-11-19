@@ -29,4 +29,5 @@ function serverApiPlugin(): Plugin {
 
 export default defineConfig({
   plugins: [react(), tailwindcss(), serverApiPlugin()],
+  envPrefix: ['VITE_', 'NEXT_PUBLIC_', 'SUPABASE_'],
 });
