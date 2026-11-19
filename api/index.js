@@ -1,4 +1,7 @@
 import { handleApiRequest } from '../server.mjs';
+import { postgresAdapter } from '../src/server/postgresAdapter.js';
+
+let pingedOnce = false;
 
 /**
  * AI DJ Studio — Vercel Serverless Function API Handler
@@ -8,6 +11,11 @@ import { handleApiRequest } from '../server.mjs';
  */
 export default async function handler(req, res) {
   try {
+    if (!pingedOnce && postgresAdapter.getStatus().configured) {
+      pingedOnce = true;
+      await postgresAdapter.ping().catch(() => {});
+    }
+
     const handled = handleApiRequest(req, res);
     if (!handled) {
       res.statusCode = 404;

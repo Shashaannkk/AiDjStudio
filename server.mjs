@@ -208,7 +208,10 @@ export function handleApiRequest(req, res) {
   }
 
   // 0. Production Health Check Endpoint (Render / Railway / Vercel probe)
-  if (urlStr === '/api/health' && (req.method === 'GET' || req.method === 'HEAD')) {
+  if (urlStr.startsWith('/api/health') && (req.method === 'GET' || req.method === 'HEAD')) {
+    if (postgresAdapter.getStatus().configured && !postgresAdapter.isConnected) {
+      postgresAdapter.ping().catch(() => {});
+    }
     const dbStatus = postgresAdapter.getStatus();
     sendJson(res, 200, {
       status: 'healthy',
